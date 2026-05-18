@@ -1,0 +1,130 @@
+.appRoot {
+  display: flex;
+}
+
+/* top bar */
+/* top bar handled by Navbar.jsx inline styles */
+.topBar { display: none; }
+.topBarToolbar { display: none; }
+
+/* sidebar */
+.sideDrawer .MuiDrawer-paper {
+  box-sizing: border-box;
+  border-right: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.sectionLabel {
+  padding: 16px 16px 6px 16px;
+  opacity: 0.7;
+  font-weight: 800 !important;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.menuList {
+  padding-top: 0 !important;
+}
+
+.menuItem {
+  margin: 0 8px;
+  border-radius: 12px;
+}
+
+.menuItem.Mui-selected {
+  background: #fff !important;
+  border: 1px solid #e5e7eb;
+}
+
+.menuIcon {
+  min-width: 38px !important;
+}
+
+.divider {
+  margin: 8px 0;
+}
+
+.rowWithPlus {
+  margin: 0 8px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.rowWithPlus.selectedRow {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.rowBtn {
+  flex: 1;
+  border-radius: 12px;
+}
+
+.rowIcon {
+  min-width: 38px !important;
+}
+
+.plusBtn {
+  margin-right: 6px !important;
+}
+
+.subList {
+  margin-top: 4px;
+}
+
+.subItem {
+  margin: 0 8px;
+  padding-left: 40px !important;
+  border-radius: 12px;
+}
+
+.subIcon {
+  min-width: 34px !important;
+}
+
+.grow {
+  flex-grow: 1;
+}
+
+.sideFooter {
+  padding: 16px;
+  opacity: 0.7;
+}
+
+.footerBold {
+  font-weight: 700 !important;
+}
+
+/* main content */
+.appMain {
+  flex-grow: 1;
+  padding: 16px;
+  padding-top: 80px; /* 64px navbar + 16px gap */
+  background: #f9fafb;
+  min-height: 100vh;
+}
+.appRoot {
+  display: flex;
+  background: #f9fafb;
+}
+
+
+.appMain::-webkit-scrollbar {
+  width: 15px;
+}
+
+.appMain::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.appMain::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 3px solid #f9fafb;
+}
+
+.appMain::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

@@ -1,0 +1,75 @@
+.usersPage {
+  min-height: calc(100vh - 64px);
+}
+
+.usersCard {
+  height: 100%;
+  padding: 24px;
+  border-radius: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.usersHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.usersTitle {
+  font-weight: 900 !important;
+}
+
+.usersSubtitle {
+  opacity: 0.75;
+}
+
+.usersMsg {
+  padding: 8px 12px;
+  background: #dbeafe !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 12px;
+}
+
+.usersDivider {
+  margin-bottom: 24px !important;
+}
+
+.usersForm {
+  max-width: 700px;
+}
+
+.usersLabel {
+  font-weight: 700 !important;
+  opacity: 0.7;
+}
+
+.usersControl {
+  margin-top: 6px;
+}
+
+.usersActions {
+  display: flex;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.usersBanner {
+  padding: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #dbeafe !important;
+}
+
+.usersCardSmall {
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+}
