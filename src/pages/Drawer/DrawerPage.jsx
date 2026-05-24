@@ -1,23 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
-  Box,
-  Button,
-  Chip,
-  Divider,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography,
+  Box, Button, Chip, Divider, FormControl, IconButton,
+  InputLabel, MenuItem, Paper, Select, Stack, Table,
+  TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import dayjs from "dayjs";
 import { bFormat } from "../../utils/dateUtils";
@@ -26,167 +12,208 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { drawerApi } from "../../services/drawerApi";
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-function money(n) {
-  const x = Number(n) || 0;
-  return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// ── helpers ───────────────────────────────────────────────────────────────────
+function usd(n) {
+  return (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function lbp(n) {
+  return (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+const LL = (n) => `L.L${lbp(n)}`;
 
 const REASON_OPTIONS = [
-  "PAYMENT",
-  "SALARY",
-  "RENT",
-  "EQUIPMENT",
-  "UTILITY",
-  "REFUND",
-  "TRANSFER",
-  "EXPENSE",
-  "OTHER",
+  "PAYMENT","SALARY","RENT","EQUIPMENT","UTILITY","REFUND","TRANSFER","EXPENSE","OTHER",
 ];
 
-// ── Balance strip ─────────────────────────────────────────────────────────────
-function BalanceStrip({ balance, totalIn, totalOut, txCount, label }) {
-  const positive = Number(balance) >= 0;
+// ── Currency summary strip ────────────────────────────────────────────────────
+function SummaryStrip({ summary, allTimeBal, label }) {
+  const { total_in_usd=0, total_out_usd=0, balance_usd=0,
+          total_in_lbp=0, total_out_lbp=0, balance_lbp=0, tx_count=0 } = summary;
 
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        gap: 2,
-        mb: 2,
-      }}
-    >
-      {/* Main balance */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2,
-          borderRadius: 3,
-          border: "2px solid",
-          borderColor: positive ? "success.main" : "error.main",
-          bgcolor: positive ? "success.50" : "error.50",
-        }}
-      >
-        <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.7 }}>
-          {label || "Balance"}
+    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 2, mb: 2 }}>
+
+      {/* USD Balance */}
+      <Paper elevation={0} sx={{
+        p: 2, borderRadius: 3, border: "2px solid",
+        borderColor: balance_usd >= 0 ? "success.main" : "error.main",
+        bgcolor: balance_usd >= 0 ? "success.50" : "error.50",
+      }}>
+        <Typography variant="caption" fontWeight={800} sx={{ opacity: 0.7 }}>
+          {label} · USD
         </Typography>
-        <Typography
-          variant="h4"
-          sx={{ fontWeight: 900, color: positive ? "success.dark" : "error.dark", mt: 0.25 }}
-        >
-          {money(balance)}
+        <Typography variant="h4" fontWeight={900}
+          sx={{ color: balance_usd >= 0 ? "success.dark" : "error.dark", mt: 0.25 }}>
+          ${usd(balance_usd)}
+        </Typography>
+        <Typography variant="caption" sx={{ opacity: 0.55 }}>
+          In: ${usd(total_in_usd)} · Out: ${usd(total_out_usd)}
         </Typography>
       </Paper>
 
-      {/* IN */}
-      <Paper
-        elevation={0}
-        sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}
-      >
-        <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6 }}>
-          Cash In
+      {/* LBP Balance */}
+      <Paper elevation={0} sx={{
+        p: 2, borderRadius: 3, border: "2px solid",
+        borderColor: balance_lbp >= 0 ? "info.main" : "error.main",
+        bgcolor: balance_lbp >= 0 ? "rgba(2,136,209,0.06)" : "error.50",
+      }}>
+        <Typography variant="caption" fontWeight={800} sx={{ opacity: 0.7 }}>
+          {label} · LBP
         </Typography>
-        <Typography variant="h5" sx={{ fontWeight: 900, color: "success.main", mt: 0.25 }}>
-          + {money(totalIn)}
+        <Typography variant="h4" fontWeight={900}
+          sx={{ color: balance_lbp >= 0 ? "info.dark" : "error.dark", mt: 0.25 }}>
+          LBP{lbp(balance_lbp)}
         </Typography>
-      </Paper>
-
-      {/* OUT */}
-      <Paper
-        elevation={0}
-        sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}
-      >
-        <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6 }}>
-          Cash Out
-        </Typography>
-        <Typography variant="h5" sx={{ fontWeight: 900, color: "error.main", mt: 0.25 }}>
-          − {money(totalOut)}
+        <Typography variant="caption" sx={{ opacity: 0.55 }}>
+          In: LBP{lbp(total_in_lbp)} · Out: LBP{lbp(total_out_lbp)}
         </Typography>
       </Paper>
 
-      {/* Count */}
-      <Paper
-        elevation={0}
-        sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}
-      >
-        <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6 }}>
-          Transactions
+      {/* USD In */}
+      <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}>
+        <Typography variant="caption" fontWeight={800} sx={{ opacity: 0.6 }}>Cash In</Typography>
+        <Typography variant="h6" fontWeight={900} color="success.main" sx={{ mt: 0.25 }}>
+          +${usd(total_in_usd)}
         </Typography>
-        <Typography variant="h5" sx={{ fontWeight: 900, mt: 0.25 }}>
-          {txCount}
+        <Typography variant="caption" color="info.main" fontWeight={700}>
+          +LBP{lbp(total_in_lbp)}
         </Typography>
+      </Paper>
+
+      {/* USD Out */}
+      <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}>
+        <Typography variant="caption" fontWeight={800} sx={{ opacity: 0.6 }}>Cash Out</Typography>
+        <Typography variant="h6" fontWeight={900} color="error.main" sx={{ mt: 0.25 }}>
+          −${usd(total_out_usd)}
+        </Typography>
+        <Typography variant="caption" color="error.light" fontWeight={700}>
+          −LBP{lbp(total_out_lbp)}
+        </Typography>
+      </Paper>
+
+      {/* Transactions count */}
+      <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}>
+        <Typography variant="caption" fontWeight={800} sx={{ opacity: 0.6 }}>Transactions</Typography>
+        <Typography variant="h5" fontWeight={900} sx={{ mt: 0.25 }}>{tx_count}</Typography>
       </Paper>
     </Box>
   );
 }
 
-// ── Daily summary row cards ───────────────────────────────────────────────────
-function DailyCards({ dailyRows, selectedDay, onSelectDay }) {
+// ── Daily table ───────────────────────────────────────────────────────────────
+function DailyTable({ dailyRows, selectedDay, onSelectDay }) {
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   if (!dailyRows.length) return null;
 
+  const PREVIEW = 5;
+  const visible = expanded ? dailyRows : dailyRows.slice(0, PREVIEW);
+  const hasMore = dailyRows.length > PREVIEW;
+
   return (
-    <Paper
-      elevation={0}
-      sx={{ p: 2, mb: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}
-    >
-      <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6, display: "block", mb: 1 }}>
-        Daily Breakdown (click to filter)
-      </Typography>
-
-      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-        {dailyRows.map((d) => {
-          const net     = Number(d.total_in) - Number(d.total_out);
-          const active  = selectedDay === d.day;
-          const pos     = net >= 0;
-
-          return (
-            <Paper
-              key={d.day}
-              elevation={0}
-              onClick={() => onSelectDay(active ? "" : d.day)}
-              sx={{
-                p: 1.5,
-                minWidth: 140,
-                borderRadius: 2,
-                border: "1px solid",
-                borderColor: active ? (pos ? "success.main" : "error.main") : "grey.200",
-                bgcolor: active ? (pos ? "success.50" : "error.50") : "common.white",
-                cursor: "pointer",
-                transition: "all 0.15s",
-                "&:hover": { borderColor: pos ? "success.light" : "error.light" },
-              }}
-            >
-              <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.65 }}>
-                {d.day}
-              </Typography>
-
-              <Typography
-                variant="body1"
-                sx={{ fontWeight: 900, color: pos ? "success.dark" : "error.dark" }}
-              >
-                {pos ? "+" : ""}{money(net)}
-              </Typography>
-
-              <Typography variant="caption" sx={{ opacity: 0.55 }}>
-                In: {money(d.total_in)} · Out: {money(d.total_out)}
-              </Typography>
-            </Paper>
-          );
-        })}
+    <Paper elevation={0} sx={{
+      mb: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200", overflow: "hidden",
+    }}>
+      <Box
+        onClick={() => setOpen(o => !o)}
+        sx={{
+          px: 2, py: 1.5, bgcolor: "grey.50",
+          borderBottom: open ? "1px solid" : "none", borderColor: "grey.200",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          cursor: "pointer", userSelect: "none",
+          "&:hover": { bgcolor: "grey.100" },
+        }}>
+        <Typography variant="caption" fontWeight={800} sx={{ opacity: 0.65, textTransform: "uppercase", letterSpacing: 1 }}>
+          Daily Breakdown — {dailyRows.length} days
+        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {open && hasMore && (
+            <Button size="small" onClick={e => { e.stopPropagation(); setExpanded(x => !x); }}
+              sx={{ fontSize: 11, fontWeight: 700, py: 0.25, minWidth: 0 }}>
+              {expanded ? "Less ▲" : `All ${dailyRows.length} ▼`}
+            </Button>
+          )}
+          <Typography sx={{ fontSize: 16, opacity: 0.5, lineHeight: 1 }}>
+            {open ? "▲" : "▼"}
+          </Typography>
+        </Box>
       </Box>
+      {!open ? null : (
+      <Table size="small">
+        <TableHead>
+          <TableRow sx={{ bgcolor: "grey.50" }}>
+            <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
+            <TableCell sx={{ fontWeight: 800 }} align="right">In USD</TableCell>
+            <TableCell sx={{ fontWeight: 800 }} align="right">Out USD</TableCell>
+            <TableCell sx={{ fontWeight: 800 }} align="right">Net USD</TableCell>
+            <TableCell sx={{ fontWeight: 800 }} align="right">In LBP</TableCell>
+            <TableCell sx={{ fontWeight: 800 }} align="right">Out LBP</TableCell>
+            <TableCell sx={{ fontWeight: 800 }} align="right">Tx</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {visible.map((d) => {
+            const netUsd = Number(d.total_in_usd) - Number(d.total_out_usd);
+            const netLbp = Number(d.total_in_lbp) - Number(d.total_out_lbp);
+            const active = selectedDay === d.day;
+            const pos    = netUsd >= 0;
+
+            return (
+              <TableRow
+                key={d.day}
+                hover
+                onClick={() => onSelectDay(active ? "" : d.day)}
+                sx={{
+                  cursor: "pointer",
+                  bgcolor: active
+                    ? (pos ? "rgba(46,125,50,0.08)" : "rgba(211,47,47,0.08)")
+                    : "inherit",
+                  "&:last-child td": { border: 0 },
+                }}
+              >
+                <TableCell sx={{ fontWeight: active ? 900 : 600, fontFamily: "monospace", fontSize: 12 }}>
+                  {d.day}
+                </TableCell>
+                <TableCell align="right" sx={{ color: "success.dark", fontWeight: 700, fontSize: 12 }}>
+                  {d.total_in_usd > 0 ? `+$${usd(d.total_in_usd)}` : "—"}
+                </TableCell>
+                <TableCell align="right" sx={{ color: "error.main", fontWeight: 700, fontSize: 12 }}>
+                  {d.total_out_usd > 0 ? `−$${usd(d.total_out_usd)}` : "—"}
+                </TableCell>
+                <TableCell align="right" sx={{
+                  fontWeight: 900, fontSize: 13,
+                  color: netUsd >= 0 ? "success.dark" : "error.dark",
+                }}>
+                  {netUsd >= 0 ? "+" : ""}${usd(netUsd)}
+                </TableCell>
+                <TableCell align="right" sx={{ color: "info.dark", fontWeight: 700, fontSize: 12 }}>
+                  {d.total_in_lbp > 0 ? `+LBP${lbp(d.total_in_lbp)}` : "—"}
+                </TableCell>
+                <TableCell align="right" sx={{ color: "error.light", fontWeight: 700, fontSize: 12 }}>
+                  {d.total_out_lbp > 0 ? `−LBP${lbp(d.total_out_lbp)}` : "—"}
+                </TableCell>
+                <TableCell align="right" sx={{ opacity: 0.55, fontSize: 12 }}>
+                  {d.tx_count}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      )}
     </Paper>
   );
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DrawerPage() {
-  // ── view state
   const { companyId: routeCompanyId } = useParams();
-  const [viewMonth,   setViewMonth]   = useState(dayjs());
-  const [companies,   setCompanies]   = useState([]);
-  const [companyId,   setCompanyId]   = useState(routeCompanyId || "");
-  const [selectedDay, setSelectedDay]   = useState(""); // YYYY-MM-DD or ""
+
+  // view state
+  const [viewMonth,    setViewMonth]    = useState(dayjs());
+  const [companies,    setCompanies]    = useState([]);
+  const [companyId,    setCompanyId]    = useState(routeCompanyId || "");
+  const [selectedDay,  setSelectedDay]  = useState("");
   const [filterType,   setFilterType]   = useState("");
   const [filterReason, setFilterReason] = useState("");
   const [filterActor,  setFilterActor]  = useState("");
@@ -195,30 +222,31 @@ export default function DrawerPage() {
   const [dateTo,       setDateTo]       = useState("");
   const [actors,       setActors]       = useState([]);
 
-  // ── data
-  const [rows, setRows]         = useState([]);
-  const [summary, setSummary]   = useState({ total_in: 0, total_out: 0, balance: 0, tx_count: 0 });
-  const [allTimeBal, setAllTimeBal] = useState(0);
-  const [dailyRows, setDailyRows]   = useState([]);
+  // data
+  const [rows,      setRows]      = useState([]);
+  const [summary,   setSummary]   = useState({
+    total_in_usd: 0, total_out_usd: 0, balance_usd: 0,
+    total_in_lbp: 0, total_out_lbp: 0, balance_lbp: 0, tx_count: 0,
+  });
+  const [allTimeBal,  setAllTimeBal]  = useState({ balance_usd: 0, balance_lbp: 0 });
+  const [dailyRows,   setDailyRows]   = useState([]);
 
-  // ── form
-  const [txType, setTxType]     = useState("IN");
-  const [amount, setAmount]     = useState("");
-  const [reason, setReason]     = useState("PAYMENT");
+  // form
+  const [txType,       setTxType]       = useState("IN");
+  const [amountUsd,    setAmountUsd]    = useState("");
+  const [amountLbp,    setAmountLbp]    = useState("");
+  const [reason,       setReason]       = useState("PAYMENT");
   const [customReason, setCustomReason] = useState("");
-  const [note, setNote]         = useState("");
-  const [saving, setSaving]     = useState(false);
-  const [msg, setMsg]           = useState({ text: "", ok: true });
-
-  // (no delete state needed — drawer transactions are permanent)
+  const [note,         setNote]         = useState("");
+  const [saving,       setSaving]       = useState(false);
+  const [msg,          setMsg]          = useState({ text: "", ok: true });
 
   const monthStr = viewMonth ? viewMonth.format("YYYY-MM") : "";
 
-  // ── loaders ────────────────────────────────────────────────────────────────
+  // ── loaders ──────────────────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
     const company = companyId || null;
 
-    // Row filters include all active filters
     const baseTime = dateFrom && dateTo
       ? { dateFrom, dateTo }
       : selectedDay ? { day: selectedDay } : { month: monthStr };
@@ -232,7 +260,6 @@ export default function DrawerPage() {
       company_id: company,
     };
 
-    // Summary only uses time + company (not type/reason/actor)
     const sumFilters = { ...baseTime, company_id: company };
 
     const [txRows, sumData, daily, bal, actorList] = await Promise.all([
@@ -240,37 +267,36 @@ export default function DrawerPage() {
       drawerApi.summary(sumFilters),
       drawerApi.dailyList({ month: monthStr }),
       drawerApi.balance(company ? { company_id: company } : {}),
-      (window.api.drawerActors ? window.api.drawerActors({ company_id: company }).catch(() => []) : Promise.resolve([])),
+      window.api.drawerActors?.({ company_id: company }).catch(() => []) || Promise.resolve([]),
     ]);
 
     setRows(txRows || []);
-    setSummary(sumData || { total_in: 0, total_out: 0, balance: 0, tx_count: 0 });
+    setSummary(sumData || {
+      total_in_usd: 0, total_out_usd: 0, balance_usd: 0,
+      total_in_lbp: 0, total_out_lbp: 0, balance_lbp: 0, tx_count: 0,
+    });
     setDailyRows(daily || []);
-    setAllTimeBal(Number(bal?.balance || 0));
+    setAllTimeBal({ balance_usd: Number(bal?.balance_usd || 0), balance_lbp: Number(bal?.balance_lbp || 0) });
     setActors(actorList || []);
-  }, [monthStr, selectedDay, filterType, filterReason, filterActor, filterSearch,
-      dateFrom, dateTo, companyId]);
+  }, [monthStr, selectedDay, filterType, filterReason, filterActor, filterSearch, dateFrom, dateTo, companyId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
-
   useEffect(() => { setCompanyId(routeCompanyId || ""); }, [routeCompanyId]);
-
   useEffect(() => {
     window.api.listCompanies?.().then(d => setCompanies(d || [])).catch(() => {});
   }, []);
-
   useEffect(() => {
     if (!msg.text) return;
     const t = setTimeout(() => setMsg({ text: "", ok: true }), 6000);
     return () => clearTimeout(t);
   }, [msg.text]);
 
-  // ── submit ─────────────────────────────────────────────────────────────────
+  // ── submit ────────────────────────────────────────────────────────────────
   const submit = async () => {
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) {
-      return setMsg({ text: "Enter a valid amount.", ok: false });
-    }
+    const aUsd = Number(amountUsd) || 0;
+    const aLbp = Number(amountLbp) || 0;
+    if (aUsd === 0 && aLbp === 0)
+      return setMsg({ text: "Enter at least one amount (USD or LBP).", ok: false });
 
     const finalReason = reason === "OTHER" ? (customReason.trim() || "OTHER") : reason;
 
@@ -278,7 +304,8 @@ export default function DrawerPage() {
     try {
       const res = await drawerApi.add({
         type:       txType,
-        amount:     amt,
+        amount_usd: aUsd,
+        amount_lbp: aLbp,
         reason:     finalReason,
         note:       note.trim() || null,
         actor:      "admin",
@@ -287,60 +314,53 @@ export default function DrawerPage() {
 
       if (!res?.ok) return setMsg({ text: "Failed to save transaction.", ok: false });
 
-      setMsg({ text: `${txType === "IN" ? "Cash In" : "Cash Out"} of ${money(amt)} saved.`, ok: true });
-      setAmount("");
-      setNote("");
+      setMsg({
+        text: `${txType === "IN" ? "Cash In" : "Cash Out"} saved — USD ${usd(aUsd)} / LBP ${lbp(aLbp)}`,
+        ok: true,
+      });
+      setAmountUsd(""); setAmountLbp(""); setNote("");
       await loadAll();
     } finally {
       setSaving(false);
     }
   };
 
-  // ── derived label ──────────────────────────────────────────────────────────
-  const periodLabel = useMemo(() => {
-    if (selectedDay) return `Day: ${selectedDay}`;
-    return `Month: ${monthStr}`;
-  }, [selectedDay, monthStr]);
+  const periodLabel = useMemo(() =>
+    selectedDay ? `Day: ${selectedDay}` : `Month: ${monthStr}`,
+    [selectedDay, monthStr]
+  );
 
   return (
     <Box>
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2,
-          mb: 2,
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "grey.200",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 2,
-        }}
-      >
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <Paper elevation={0} sx={{
+        p: 2, mb: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        flexWrap: "wrap", gap: 2,
+      }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 900 }}>
-            Cash Drawer
-          </Typography>
+          <Typography variant="h5" fontWeight={900}>Cash Drawer</Typography>
           <Typography variant="body2" sx={{ opacity: 0.65 }}>
             Track all cash in and out of the drawer.
           </Typography>
         </Box>
 
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+          {/* All-time badges */}
           <Chip
-            label={`All-time balance: ${money(allTimeBal)}`}
-            color={allTimeBal >= 0 ? "success" : "error"}
-            sx={{ fontWeight: 800, fontSize: 13 }}
+            label={`All-time USD: ${usd(allTimeBal.balance_usd)} $`}
+            color={allTimeBal.balance_usd >= 0 ? "success" : "error"}
+            sx={{ fontWeight: 800, fontSize: 12 }}
+          />
+          <Chip
+            label={`All-time LBP: ${lbp(allTimeBal.balance_lbp)} L.L`}
+            color={allTimeBal.balance_lbp >= 0 ? "info" : "error"}
+            sx={{ fontWeight: 800, fontSize: 12 }}
           />
 
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
-              label="Month"
-              views={["year", "month"]}
-              openTo="month"
+              label="Month" views={["year", "month"]} openTo="month"
               value={viewMonth}
               onChange={(v) => { if (v) { setViewMonth(v); setSelectedDay(""); } }}
               slotProps={{ textField: { sx: { width: 180 } } }}
@@ -349,197 +369,146 @@ export default function DrawerPage() {
         </Box>
       </Paper>
 
-      {/* ── Period summary strip ──────────────────────────────────────────── */}
-      <BalanceStrip
-        balance={summary.balance}
-        totalIn={summary.total_in}
-        totalOut={summary.total_out}
-        txCount={rows.length}
-        label={periodLabel}
-      />
+      {/* ── Summary strip ───────────────────────────────────────────────── */}
+      <SummaryStrip summary={summary} allTimeBal={allTimeBal} label={periodLabel} />
 
-      {/* ── Daily cards ──────────────────────────────────────────────────── */}
-      <DailyCards
-        dailyRows={dailyRows}
-        selectedDay={selectedDay}
-        onSelectDay={setSelectedDay}
-      />
+      {/* ── Daily table ─────────────────────────────────────────────────── */}
+      <DailyTable dailyRows={dailyRows} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
 
-      {/* ── Add transaction form ──────────────────────────────────────────── */}
-      <Paper
-        elevation={0}
-        sx={{ p: 2, mb: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200" }}
-      >
-        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1.5 }}>
+      {/* ── Add transaction form ─────────────────────────────────────────── */}
+      <Paper elevation={0} sx={{
+        p: 2, mb: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200",
+      }}>
+        <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1.5 }}>
           Add Transaction
         </Typography>
 
         <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "flex-start" }}>
-          {/* Type toggle */}
+          {/* Type */}
           <Box sx={{ display: "flex", gap: 1 }}>
             {["IN", "OUT"].map((t) => (
-              <Button
-                key={t}
+              <Button key={t}
                 variant={txType === t ? "contained" : "outlined"}
                 color={t === "IN" ? "success" : "error"}
                 onClick={() => setTxType(t)}
-                sx={{ fontWeight: 800, minWidth: 90 }}
-              >
-                {t === "IN" ? "＋ Cash In" : "－ Cash Out"}
+                sx={{ fontWeight: 800, minWidth: 100, height: 56 }}>
+                {t === "IN" ? "+ CASH IN" : "− CASH OUT"}
               </Button>
             ))}
           </Box>
 
-          {/* Amount */}
+          {/* USD amount */}
           <TextField
-            label="Amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            sx={{ width: 160 }}
-            inputProps={{ inputMode: "decimal" }}
+            label="Amount USD" value={amountUsd}
+            onChange={e => setAmountUsd(e.target.value)}
+            sx={{ width: 150 }} inputProps={{ inputMode: "decimal" }}
+            InputProps={{ startAdornment: <Typography sx={{ mr: 0.5, fontWeight: 700, color: "text.secondary" }}>$</Typography> }}
+          />
+
+          {/* LBP amount */}
+          <TextField
+            label="Amount LBP" value={amountLbp}
+            onChange={e => setAmountLbp(e.target.value)}
+            sx={{ width: 170 }} inputProps={{ inputMode: "decimal" }}
+            InputProps={{ startAdornment: <Typography sx={{ mr: 0.5, fontWeight: 700, color: "text.secondary" }}>LBP</Typography> }}
           />
 
           {/* Reason */}
-          <FormControl sx={{ minWidth: 160 }}>
+          <FormControl sx={{ minWidth: 150 }}>
             <InputLabel>Reason</InputLabel>
-            <Select
-              label="Reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            >
-              {REASON_OPTIONS.map((r) => (
-                <MenuItem key={r} value={r}>{r}</MenuItem>
-              ))}
+            <Select label="Reason" value={reason} onChange={e => setReason(e.target.value)}>
+              {REASON_OPTIONS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
             </Select>
           </FormControl>
 
           {reason === "OTHER" && (
-            <TextField
-              label="Custom reason"
-              value={customReason}
-              onChange={(e) => setCustomReason(e.target.value)}
-              sx={{ minWidth: 180 }}
-            />
+            <TextField label="Custom reason" value={customReason}
+              onChange={e => setCustomReason(e.target.value)} sx={{ minWidth: 180 }} />
           )}
 
           {/* Note */}
-          <TextField
-            label="Note (optional)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            sx={{ flex: 1, minWidth: 200 }}
-          />
+          <TextField label="Note (optional)" value={note}
+            onChange={e => setNote(e.target.value)} sx={{ flex: 1, minWidth: 200 }} />
 
-          {/* Submit */}
-          <Button
-            variant="contained"
-            onClick={submit}
-            disabled={saving || !amount}
+          {/* Save */}
+          <Button variant="contained" onClick={submit}
+            disabled={saving || (!amountUsd && !amountLbp)}
             sx={{
-              height: 56,
-              px: 3,
-              fontWeight: 800,
+              height: 56, px: 3, fontWeight: 800,
               bgcolor: txType === "IN" ? "success.main" : "error.main",
-              "&:hover": {
-                bgcolor: txType === "IN" ? "success.dark" : "error.dark",
-              },
-            }}
-          >
+              "&:hover": { bgcolor: txType === "IN" ? "success.dark" : "error.dark" },
+            }}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </Box>
 
-        {/* Inline message */}
         {msg.text && (
-          <Box
-            sx={{
-              mt: 1.5,
-              px: 2,
-              py: 1,
-              borderRadius: 2,
-              bgcolor: msg.ok ? "success.50" : "error.50",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {msg.text}
-            </Typography>
-            <IconButton size="small" onClick={() => setMsg({ text: "", ok: true })}>
-              ✕
-            </IconButton>
+          <Box sx={{
+            mt: 1.5, px: 2, py: 1, borderRadius: 2,
+            bgcolor: msg.ok ? "success.50" : "error.50",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <Typography variant="body2" fontWeight={600}>{msg.text}</Typography>
+            <IconButton size="small" onClick={() => setMsg({ text: "", ok: true })}>✕</IconButton>
           </Box>
         )}
       </Paper>
 
-      {/* ── Transactions table ────────────────────────────────────────────── */}
-      <Paper
-        elevation={0}
-        sx={{ borderRadius: 3, border: "1px solid", borderColor: "grey.200", overflow: "hidden" }}
-      >
-        {/* Table toolbar */}
-        <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center",
+      {/* ── Transactions table ───────────────────────────────────────────── */}
+      <Paper elevation={0} sx={{
+        borderRadius: 3, border: "1px solid", borderColor: "grey.200", overflow: "hidden",
+      }}>
+        {/* Toolbar */}
+        <Box sx={{
+          px: 2, py: 1.5, display: "flex", alignItems: "center",
           gap: 1.5, flexWrap: "wrap", bgcolor: "grey.50",
-          borderBottom: "1px solid", borderColor: "grey.200" }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, flexGrow: 1 }}>
+          borderBottom: "1px solid", borderColor: "grey.200",
+        }}>
+          <Typography variant="subtitle1" fontWeight={800} sx={{ flexGrow: 1 }}>
             Transactions · {periodLabel}
           </Typography>
 
-          {/* Company filter — only shown on All Combined view */}
           {!routeCompanyId && companies.length > 0 && (
             <FormControl size="small" sx={{ minWidth: 140 }}>
               <InputLabel>Company</InputLabel>
-              <Select label="Company" value={companyId}
-                onChange={e => setCompanyId(e.target.value)}>
+              <Select label="Company" value={companyId} onChange={e => setCompanyId(e.target.value)}>
                 <MenuItem value="">All Companies</MenuItem>
-                {companies.map(c => (
-                  <MenuItem key={c.id} value={String(c.id)}>{c.name}</MenuItem>
-                ))}
+                {companies.map(c => <MenuItem key={c.id} value={String(c.id)}>{c.name}</MenuItem>)}
               </Select>
             </FormControl>
           )}
 
-          {/* Search */}
           <TextField size="small" placeholder="Search note / reason…"
-            value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
-            sx={{ width: 190 }} />
+            value={filterSearch} onChange={e => setFilterSearch(e.target.value)} sx={{ width: 190 }} />
 
-          {/* Type */}
           <FormControl size="small" sx={{ minWidth: 110 }}>
             <InputLabel>Type</InputLabel>
-            <Select label="Type" value={filterType}
-              onChange={e => setFilterType(e.target.value)}>
+            <Select label="Type" value={filterType} onChange={e => setFilterType(e.target.value)}>
               <MenuItem value="">All</MenuItem>
               <MenuItem value="IN">Cash In</MenuItem>
               <MenuItem value="OUT">Cash Out</MenuItem>
             </Select>
           </FormControl>
 
-          {/* Reason */}
           <FormControl size="small" sx={{ minWidth: 130 }}>
             <InputLabel>Reason</InputLabel>
-            <Select label="Reason" value={filterReason}
-              onChange={e => setFilterReason(e.target.value)}>
+            <Select label="Reason" value={filterReason} onChange={e => setFilterReason(e.target.value)}>
               <MenuItem value="">All</MenuItem>
               {REASON_OPTIONS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
               <MenuItem value="INVOICE_DELETED">INVOICE_DELETED</MenuItem>
             </Select>
           </FormControl>
 
-          {/* Actor */}
           {actors.length > 0 && (
             <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Actor</InputLabel>
-              <Select label="Actor" value={filterActor}
-                onChange={e => setFilterActor(e.target.value)}>
+              <Select label="Actor" value={filterActor} onChange={e => setFilterActor(e.target.value)}>
                 <MenuItem value="">All</MenuItem>
                 {actors.map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
               </Select>
             </FormControl>
           )}
 
-          {/* Date range */}
           <TextField size="small" type="date" label="From"
             InputLabelProps={{ shrink: true }} sx={{ width: 145 }}
             value={dateFrom} onChange={e => { setDateFrom(e.target.value); setSelectedDay(""); }} />
@@ -547,7 +516,6 @@ export default function DrawerPage() {
             InputLabelProps={{ shrink: true }} sx={{ width: 145 }}
             value={dateTo} onChange={e => { setDateTo(e.target.value); setSelectedDay(""); }} />
 
-          {/* Clear filters */}
           {(filterType || filterReason || filterActor || filterSearch || dateFrom || dateTo || selectedDay || (!routeCompanyId && companyId)) && (
             <Button size="small" color="error" variant="outlined"
               onClick={() => {
@@ -555,9 +523,7 @@ export default function DrawerPage() {
                 setFilterSearch(""); setDateFrom(""); setDateTo(""); setSelectedDay("");
                 if (!routeCompanyId) setCompanyId("");
               }}
-              sx={{ fontWeight: 700, height: 40 }}>
-              Clear
-            </Button>
+              sx={{ fontWeight: 700, height: 40 }}>Clear</Button>
           )}
 
           {selectedDay && (
@@ -566,7 +532,7 @@ export default function DrawerPage() {
           )}
         </Box>
 
-        <Table size="small" sx={{ minWidth: 650 }}>
+        <Table size="small" sx={{ minWidth: 750 }}>
           <TableHead>
             <TableRow sx={{ bgcolor: "grey.50" }}>
               <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
@@ -575,7 +541,8 @@ export default function DrawerPage() {
               <TableCell sx={{ fontWeight: 800 }}>Reason</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>Note</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>Actor</TableCell>
-              <TableCell sx={{ fontWeight: 800 }} align="right">Amount</TableCell>
+              <TableCell sx={{ fontWeight: 800 }} align="right">USD</TableCell>
+              <TableCell sx={{ fontWeight: 800 }} align="right">L.L</TableCell>
             </TableRow>
           </TableHead>
 
@@ -588,61 +555,43 @@ export default function DrawerPage() {
               </TableRow>
             ) : (
               rows.map((r, idx) => (
-                <TableRow
-                  key={r.id}
-                  hover
-                  sx={{
-                    bgcolor:
-                      r.type === "IN"
-                        ? "rgba(46,125,50,0.04)"
-                        : "rgba(211,47,47,0.04)",
-                    "&:last-child td": { border: 0 },
-                  }}
-                >
+                <TableRow key={r.id} hover sx={{
+                  bgcolor: r.type === "IN" ? "rgba(46,125,50,0.04)" : "rgba(211,47,47,0.04)",
+                  "&:last-child td": { border: 0 },
+                }}>
                   <TableCell sx={{ opacity: 0.45, fontFamily: "monospace", fontSize: 11 }}>
                     {idx + 1}
                   </TableCell>
-
                   <TableCell sx={{ whiteSpace: "nowrap", fontSize: 12 }}>
                     {r.created_at ? bFormat(r.created_at, "DD/MM/YYYY HH:mm") : "—"}
                   </TableCell>
-
                   <TableCell>
-                    <Chip
-                      label={r.type}
-                      size="small"
+                    <Chip label={r.type} size="small"
                       color={r.type === "IN" ? "success" : "error"}
-                      sx={{ fontWeight: 800, minWidth: 52 }}
-                    />
+                      sx={{ fontWeight: 800, minWidth: 52 }} />
                   </TableCell>
-
                   <TableCell sx={{ fontSize: 12 }}>{r.reason || "—"}</TableCell>
-
-                  <TableCell sx={{ fontSize: 12, opacity: 0.75, maxWidth: 220 }}>
-                    {r.note || "—"}
-                  </TableCell>
-
+                  <TableCell sx={{ fontSize: 12, opacity: 0.75, maxWidth: 220 }}>{r.note || "—"}</TableCell>
                   <TableCell>
-                    <Chip
-                      label={r.actor || "system"}
-                      size="small"
-                      variant="outlined"
-                      sx={{ fontSize: 11, fontWeight: 600 }}
-                    />
+                    <Chip label={r.actor || "system"} size="small" variant="outlined"
+                      sx={{ fontSize: 11, fontWeight: 600 }} />
                   </TableCell>
-
-                  <TableCell
-                    align="right"
-                    sx={{
-                      fontWeight: 900,
-                      fontFamily: "monospace",
-                      color: r.type === "IN" ? "success.dark" : "error.dark",
-                      fontSize: 14,
-                    }}
-                  >
-                    {r.type === "IN" ? "+" : "−"}{money(r.amount)}
+                  <TableCell align="right" sx={{
+                    fontWeight: 900, fontFamily: "monospace", fontSize: 13,
+                    color: r.type === "IN" ? "success.dark" : "error.dark",
+                  }}>
+                    {Number(r.amount_usd) > 0
+                      ? `${r.type === "IN" ? "+" : "−"}$${usd(r.amount_usd)}`
+                      : "—"}
                   </TableCell>
-
+                  <TableCell align="right" sx={{
+                    fontWeight: 700, fontFamily: "monospace", fontSize: 13,
+                    color: r.type === "IN" ? "info.dark" : "error.light",
+                  }}>
+                    {Number(r.amount_lbp) > 0
+                      ? `${r.type === "IN" ? "+" : "−"}LBP${lbp(r.amount_lbp)}`
+                      : "—"}
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -652,36 +601,32 @@ export default function DrawerPage() {
         {rows.length > 0 && (
           <>
             <Divider />
-            <Box
-              sx={{
-                px: 2,
-                py: 1,
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 3,
-                bgcolor: "grey.50",
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 700, color: "success.dark" }}>
-                In: +{money(summary.total_in)}
+            <Box sx={{ px: 2, py: 1, display: "flex", justifyContent: "flex-end", gap: 3, bgcolor: "grey.50" }}>
+              <Typography variant="body2" fontWeight={700} color="success.dark">
+                USD In: +${usd(summary.total_in_usd)}
               </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700, color: "error.dark" }}>
-                Out: −{money(summary.total_out)}
+              <Typography variant="body2" fontWeight={700} color="error.dark">
+                USD Out: −${usd(summary.total_out_usd)}
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 900,
-                  color: summary.balance >= 0 ? "success.dark" : "error.dark",
-                }}
-              >
-                Net: {money(summary.balance)}
+              <Typography variant="body2" fontWeight={900}
+                color={summary.balance_usd >= 0 ? "success.dark" : "error.dark"}>
+                USD Net: ${usd(summary.balance_usd)}
+              </Typography>
+              <Divider orientation="vertical" flexItem />
+              <Typography variant="body2" fontWeight={700} color="info.dark">
+                L.L In: +LBP{lbp(summary.total_in_lbp)}
+              </Typography>
+              <Typography variant="body2" fontWeight={700} color="error.light">
+                L.L Out: −LBP{lbp(summary.total_out_lbp)}
+              </Typography>
+              <Typography variant="body2" fontWeight={900}
+                color={summary.balance_lbp >= 0 ? "info.dark" : "error.dark"}>
+                L.L Net: LBP{lbp(summary.balance_lbp)}
               </Typography>
             </Box>
           </>
         )}
       </Paper>
-
     </Box>
   );
 }

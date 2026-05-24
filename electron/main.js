@@ -5,8 +5,8 @@ const fs = require("fs");
 require("./database/schema");
 const db = require("./database/db");
 const { registerIpcHandlers }     = require("./ipc/index.js");
-const { registerLicenseHandlers } = require("./ipc/license_handlers"); // ← NEW
-const { registerPosHandlers }     = require("./ipc/pos_handlers");
+const { registerLicenseHandlers } = require("./ipc/license_handlers");
+
 
 const now = new Date();
 const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -42,8 +42,7 @@ db.all(`SELECT id, blocked FROM users WHERE COALESCE(is_deleted,0)=0`, [], (err,
 
 
 registerIpcHandlers(ipcMain, db);
-registerLicenseHandlers(ipcMain, db, app); // ← NEW
-registerPosHandlers(ipcMain, db);
+registerLicenseHandlers(ipcMain, db, app);
 
 // ── Daily auto-backup ─────────────────────────────────────────────────────────
 ;(function runDailyBackup() {
@@ -136,12 +135,10 @@ ipcMain.handle("db-restore", async (event, backupName) => {
     let srcPath;
 
     if (backupName) {
-      // Restore a specific auto-backup by filename
       srcPath = path.join(backupDir, backupName);
       if (!fs.existsSync(srcPath))
         return { ok: false, reason: "FILE_NOT_FOUND", message: `Backup file not found: ${backupName}` };
     } else {
-      // No backup selected — open file picker so user can choose any .db file
       const { filePaths, canceled } = await dialog.showOpenDialog({
         title: "Select Backup File to Restore",
         defaultPath: backupDir,
@@ -187,14 +184,10 @@ ipcMain.handle("print-html", async (event, { html, title }) => {
     const is80mm      = html.includes("80mm");
     const isA5        = html.includes("A5");
 
-    // For 80mm thermal: render in a narrow window so Chromium lays out the
-    // receipt at the right width, then let @page CSS define the page size.
-    // For A4/A5: standard named page sizes.
     let pageSize = "A4";
     if (isA5)   pageSize = "A5";
-    // 80mm uses @page { size: 80mm } in CSS — Chromium honors it automatically.
 
-    const winWidth  = is80mm ? 320  : 1400;  // ~80mm at 96dpi for thermal
+    const winWidth  = is80mm ? 320  : 1400;
     const winHeight = is80mm ? 1200 : 1000;
 
     const printWin = new BrowserWindow({
@@ -214,7 +207,6 @@ ipcMain.handle("print-html", async (event, { html, title }) => {
       printBackground: true,
       landscape: false,
       pageSize,
-      // Zero Electron margins so only @page CSS margin applies.
       margins: { top: 0, bottom: 0, left: 0, right: 0 },
     });
 
@@ -261,38 +253,48 @@ function createWindow() {
   log("indexPath=", indexPath, "exists=", String(fs.existsSync(indexPath)));
 
   const iconPath = path.join(appPath, "assets", "icon.png");
-const win = new BrowserWindow({
-  width: 1200,
-  height: 800,
-  minWidth: 900,
-  minHeight: 600,
-  icon: fs.existsSync(iconPath) ? iconPath : undefined,
+  const win = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
 
-  // Keep custom top bar, but show native X / maximize / minimize buttons
-  titleBarStyle: "hidden",
+    titleBarStyle: "default",
 
-  ...(process.platform !== "darwin"
-    ? {
-titleBarOverlay: {
-  color: "#00000000",
-  symbolColor: "#111827",
-  height: 66,
-},
-      }
-    : {}),
+    ...(process.platform !== "darwin"
+      ? {
+          titleBarOverlay: {
+            color: "#00000000",
+            symbolColor: "#111827",
+            height: 66,
+          },
+        }
+      : {}),
 
-  webPreferences: {
-    preload: preloadPath,
-    contextIsolation: true,
-    nodeIntegration: false,
-  },
-});
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
 
   // ── Window controls for frameless window ────────────────────────────────
   ipcMain.handle("win-minimize", () => win.minimize());
   ipcMain.handle("win-maximize", () => win.isMaximized() ? win.unmaximize() : win.maximize());
   ipcMain.handle("win-close",    () => win.close());
   ipcMain.handle("win-is-maximized", () => win.isMaximized());
+
+  // ── DevTools toggle (called from navbar button) ─────────────────────────
+  ipcMain.handle("toggle-devtools", () => {
+    if (win.webContents.isDevToolsOpened()) {
+      win.webContents.closeDevTools();
+      return { ok: true, open: false };
+    } else {
+      win.webContents.openDevTools({ mode: "detach" });
+      return { ok: true, open: true };
+    }
+  });
 
   win.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
     log("did-fail-load", String(errorCode), errorDescription, validatedURL);
@@ -306,9 +308,8 @@ titleBarOverlay: {
 
   if (isDev) {
     win.loadURL("http://localhost:3000");
-    win.webContents.openDevTools({ mode: "detach" });
+    // DevTools no longer auto-opens — toggle from navbar button
   } else {
-    win.webContents.openDevTools({ mode: "detach" });
     win.loadFile(indexPath);
     win.webContents.on("will-navigate", (event, url) => {
       if (url.startsWith("file://") && !url.endsWith("index.html")) {

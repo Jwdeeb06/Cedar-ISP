@@ -4,20 +4,19 @@ import {
   Box, Button, Chip, Dialog, DialogActions, DialogContent,
   DialogTitle, Divider, FormControlLabel, IconButton, Paper,
   Switch, Table, TableBody, TableCell, TableHead, TableRow,
-  TextField, ToggleButton, ToggleButtonGroup, Typography,
+  TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from "@mui/material";
 import AddIcon         from "@mui/icons-material/Add";
 import EditIcon        from "@mui/icons-material/Edit";
 import LockIcon        from "@mui/icons-material/Lock";
 import CloseIcon       from "@mui/icons-material/Close";
 import PeopleIcon      from "@mui/icons-material/People";
+import LockPersonIcon  from "@mui/icons-material/LockPerson";
 import { PERMISSIONS, useAuth } from "../../context/AuthContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
-// Group permissions
 const GROUPS = [...new Set(PERMISSIONS.map(p => p.group))];
 
-// ── Permission toggles ────────────────────────────────────────────────────────
 function PermissionToggles({ perms, onChange, disabled }) {
   return (
     <Box sx={{ display:"flex", flexDirection:"column", gap:2 }}>
@@ -33,17 +32,12 @@ function PermissionToggles({ perms, onChange, disabled }) {
                 justifyContent:"space-between", px:1.5, py:0.75, borderRadius:1.5,
                 bgcolor: perms[p.key] ? "primary.50" : "grey.50",
                 border:"1px solid", borderColor: perms[p.key] ? "primary.200" : "grey.200",
-                transition:"all 0.12s",
-              }}>
+                transition:"all 0.12s" }}>
                 <Typography variant="body2" fontWeight={perms[p.key] ? 700 : 400}>
                   {p.label}
                 </Typography>
-                <Switch
-                  size="small"
-                  checked={Boolean(perms[p.key])}
-                  disabled={disabled}
-                  onChange={e => onChange({ ...perms, [p.key]: e.target.checked })}
-                />
+                <Switch size="small" checked={Boolean(perms[p.key])} disabled={disabled}
+                  onChange={e => onChange({ ...perms, [p.key]: e.target.checked })} />
               </Box>
             ))}
           </Box>
@@ -53,7 +47,6 @@ function PermissionToggles({ perms, onChange, disabled }) {
   );
 }
 
-// ── Employee dialog ───────────────────────────────────────────────────────────
 function EmployeeDialog({ open, onClose, onSaved, initial }) {
   const isEdit = Boolean(initial?.id);
   const defaultPerms = Object.fromEntries(PERMISSIONS.map(p => [p.key, false]));
@@ -126,8 +119,6 @@ function EmployeeDialog({ open, onClose, onSaved, initial }) {
       <Divider />
       <DialogContent>
         <Box sx={{ display:"flex", flexDirection:"column", gap:2, pt:1 }}>
-
-          {/* Basic info */}
           <TextField size="small" label="Full Name *" fullWidth
             value={form.full_name} onChange={set("full_name")} />
           {!isEdit && (
@@ -138,12 +129,8 @@ function EmployeeDialog({ open, onClose, onSaved, initial }) {
                 value={form.password} onChange={set("password")} />
             </Box>
           )}
-
-          {/* Role */}
           <Box>
-            <Typography variant="caption" fontWeight={700} sx={{ opacity:0.6, display:"block", mb:1 }}>
-              ROLE
-            </Typography>
+            <Typography variant="caption" fontWeight={700} sx={{ opacity:0.6, display:"block", mb:1 }}>ROLE</Typography>
             <ToggleButtonGroup value={form.role} exclusive size="small" fullWidth
               onChange={(_, v) => v && setForm(p => ({ ...p, role:v }))}>
               <ToggleButton value="employee" sx={{ fontWeight:700 }}>Employee</ToggleButton>
@@ -155,30 +142,21 @@ function EmployeeDialog({ open, onClose, onSaved, initial }) {
               </Typography>
             )}
           </Box>
-
-          {/* Active toggle */}
           <FormControlLabel
             control={<Switch checked={Boolean(form.is_active)}
               onChange={e => setForm(p => ({ ...p, is_active: e.target.checked ? 1 : 0 }))} />}
-            label={<Typography variant="body2" fontWeight={600}>
-              Account Active
-            </Typography>}
+            label={<Typography variant="body2" fontWeight={600}>Account Active</Typography>}
           />
-
-          {/* Permissions — only for employees */}
           {form.role === "employee" && (
             <Box>
               <Divider sx={{ mb:2 }} />
-              <Typography variant="subtitle2" fontWeight={800} sx={{ mb:1.5 }}>
-                Permissions
-              </Typography>
+              <Typography variant="subtitle2" fontWeight={800} sx={{ mb:1.5 }}>Permissions</Typography>
               <PermissionToggles
                 perms={form.permissions}
                 onChange={perms => setForm(p => ({ ...p, permissions: perms }))}
               />
             </Box>
           )}
-
           {err && <Typography color="error" variant="body2">{err}</Typography>}
         </Box>
       </DialogContent>
@@ -192,23 +170,18 @@ function EmployeeDialog({ open, onClose, onSaved, initial }) {
   );
 }
 
-// ── Change password dialog ────────────────────────────────────────────────────
 function ChangePasswordDialog({ open, onClose, employee }) {
   const [newPass, setNewPass] = useState("");
   const [err,     setErr]     = useState("");
-
   useEffect(() => { if (open) { setNewPass(""); setErr(""); } }, [open]);
-
   const save = async () => {
     if (!newPass.trim()) return setErr("Enter new password");
     const res = await window.api.changePassword({ id: employee.id, new_password: newPass.trim() });
     if (res?.ok) onClose();
     else setErr("Failed to change password");
   };
-
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth
-      PaperProps={{ sx:{ borderRadius:3 } }}>
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx:{ borderRadius:3 } }}>
       <DialogTitle>
         <Typography variant="h6" fontWeight={800}>Change Password</Typography>
         <Typography variant="caption" sx={{ opacity:0.6 }}>{employee?.full_name}</Typography>
@@ -227,14 +200,17 @@ function ChangePasswordDialog({ open, onClose, employee }) {
   );
 }
 
+// ── Is default admin (protected account) ─────────────────────────────────────
+const isDefaultAdmin = (emp) => emp?.username === "admin" || emp?.id === 1;
+
 // ══════════════════════════════════════════════════════════════════════════════
 export default function EmployeesPage() {
   const { employee: me } = useAuth();
-  const [employees, setEmployees] = useState([]);
-  const [dialog,    setDialog]    = useState({ open:false, item:null });
+  const [employees,  setEmployees]  = useState([]);
+  const [dialog,     setDialog]     = useState({ open:false, item:null });
   const [passDialog, setPassDialog] = useState({ open:false, item:null });
-  const [confirm,   setConfirm]   = useState({ open:false, title:"", message:"", onConfirm:null });
-  const [msg,       setMsg]       = useState({ text:"", ok:true });
+  const [confirm,    setConfirm]    = useState({ open:false, title:"", message:"", onConfirm:null });
+  const [msg,        setMsg]        = useState({ text:"", ok:true });
 
   const load = async () => {
     const d = await window.api.listEmployees();
@@ -284,7 +260,6 @@ export default function EmployeesPage() {
         </Button>
       </Box>
 
-      {/* Message */}
       {msg.text && (
         <Paper sx={{ p:1.5, mb:2, borderRadius:2,
           bgcolor: msg.ok?"success.50":"error.50",
@@ -294,13 +269,10 @@ export default function EmployeesPage() {
         </Paper>
       )}
 
-      {/* Table */}
       <Paper elevation={0} sx={{ borderRadius:3, border:"1px solid", borderColor:"grey.200", overflow:"hidden" }}>
         <Box sx={{ px:2, py:1.5, bgcolor:"grey.50", borderBottom:"1px solid", borderColor:"grey.200",
           display:"flex", alignItems:"center" }}>
-          <Typography variant="subtitle1" fontWeight={800} sx={{ flexGrow:1 }}>
-            Staff Accounts
-          </Typography>
+          <Typography variant="subtitle1" fontWeight={800} sx={{ flexGrow:1 }}>Staff Accounts</Typography>
           <Chip label={`${employees.length} employees`} size="small" sx={{ fontWeight:700 }} />
         </Box>
 
@@ -318,17 +290,26 @@ export default function EmployeesPage() {
           </TableHead>
           <TableBody>
             {employees.map(emp => {
-              const isMe = emp.id === me?.id;
+              const isMe      = emp.id === me?.id;
+              const isDefault = isDefaultAdmin(emp);
               let perms = {};
               try { perms = JSON.parse(emp.permissions || "{}"); } catch {}
-              const permCount = perms.all ? "All" :
-                Object.values(perms).filter(Boolean).length;
+              const permCount = perms.all ? "All" : Object.values(perms).filter(Boolean).length;
 
               return (
-                <TableRow key={emp.id} hover sx={{ "&:last-child td":{border:0} }}>
+                <TableRow key={emp.id} hover
+                  sx={{ "&:last-child td":{border:0},
+                    bgcolor: isDefault ? "warning.50" : "inherit" }}>
                   <TableCell sx={{ fontWeight:700 }}>
-                    {emp.full_name}
-                    {isMe && <Chip label="You" size="small" sx={{ ml:1, fontSize:10, height:18 }} />}
+                    <Box sx={{ display:"flex", alignItems:"center", gap:1 }}>
+                      {isDefault && (
+                        <Tooltip title="Default system account — protected">
+                          <LockPersonIcon sx={{ fontSize:15, color:"warning.main" }} />
+                        </Tooltip>
+                      )}
+                      {emp.full_name}
+                      {isMe && <Chip label="You" size="small" sx={{ ml:0.5, fontSize:10, height:18 }} />}
+                    </Box>
                   </TableCell>
                   <TableCell sx={{ fontFamily:"monospace", fontSize:12, opacity:0.8 }}>
                     {emp.username}
@@ -354,14 +335,22 @@ export default function EmployeesPage() {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display:"flex", gap:0.75 }}>
-                      <IconButton size="small"
-                        onClick={() => setDialog({ open:true, item:emp })}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small"
-                        onClick={() => setPassDialog({ open:true, item:emp })}>
-                        <LockIcon fontSize="small" />
-                      </IconButton>
+                      {/* Edit — blocked for default admin */}
+                      <Tooltip title={isDefault ? "Default account cannot be edited" : "Edit employee"}>
+                        <span>
+                          <IconButton size="small" disabled={isDefault}
+                            onClick={() => setDialog({ open:true, item:emp })}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      {/* Password change — always allowed */}
+                      <Tooltip title="Change password">
+                        <IconButton size="small"
+                          onClick={() => setPassDialog({ open:true, item:emp })}>
+                          <LockIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </TableCell>
                 </TableRow>

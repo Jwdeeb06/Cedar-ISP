@@ -1,4 +1,3 @@
-// electron/ipc/index.js
 const { registerUserHandlers }     = require("./users.handlers");
 const { registerPaymentHandlers }  = require("./payments_handlers");
 const { registerInvoiceHandlers }  = require("./invoices.handlers");
@@ -10,8 +9,9 @@ const { registerMapHandlers }      = require("./map_handlers");
 const { registerActivityHandlers } = require("./activity.handlers");
 const { registerUserDataHandlers } = require("./users.data.handlers");
 const { registerArchiveHandlers }  = require("./archive_handlers");
-const { registerCompanyHandlers } = require("./company_handlers");
-const { registerAuthHandlers } = require("./auth_handlers");
+const { registerCompanyHandlers }  = require("./company_handlers");
+const { registerAuthHandlers }     = require("./auth_handlers");
+const { registerPosHandlers }      = require("./pos_handlers");
 
 function registerIpcHandlers(ipcMain, db) {
   registerUserHandlers(ipcMain, db);
@@ -27,6 +27,7 @@ function registerIpcHandlers(ipcMain, db) {
   registerArchiveHandlers(ipcMain, db);
   registerCompanyHandlers(ipcMain, db);
   registerAuthHandlers(ipcMain, db);
+  registerPosHandlers(ipcMain, db);
 }
 
 module.exports = { registerIpcHandlers };

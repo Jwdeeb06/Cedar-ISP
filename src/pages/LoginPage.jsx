@@ -7,31 +7,6 @@ import VisibilityIcon    from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import WhatsAppIcon      from "@mui/icons-material/WhatsApp";
 
-function LoginWinControls() {
-  return (
-    <Box sx={{
-      position: "fixed", top: 0, right: 0, zIndex: 9999,
-      display: "flex", WebkitAppRegion: "no-drag",
-    }}>
-      {[
-        { label: "–", action: () => window.api.winMinimize?.(), hover: "rgba(255,255,255,0.15)" },
-        { label: "□", action: () => window.api.winMaximize?.(), hover: "rgba(255,255,255,0.15)" },
-        { label: "✕", action: () => window.api.winClose?.(),    hover: "#e81123" },
-      ].map(({ label, action, hover }) => (
-        <Box key={label} onClick={action} sx={{
-          width: 46, height: 40,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", color: "rgba(255,255,255,0.8)", fontSize: 13,
-          fontFamily: "system-ui", fontWeight: 400,
-          "&:hover": { bgcolor: hover, color: "white" },
-          transition: "all 0.1s",
-        }}>
-          {label}
-        </Box>
-      ))}
-    </Box>
-  );
-}
 
 function LoginDragRegion() {
   return (
@@ -136,7 +111,6 @@ export default function LoginPage({ onLogin }) {
         gap: 2,
       }}>
         <LoginDragRegion />
-        <LoginWinControls />
         <CircularProgress sx={{ color: "white" }} />
         <Typography color="white" fontWeight={600} sx={{ opacity: 0.8 }}>Checking license…</Typography>
       </Box>
@@ -151,7 +125,7 @@ export default function LoginPage({ onLogin }) {
       position: "fixed", top: 0, left: 0, overflow: "hidden",
     }}>
       <LoginDragRegion />
-      <LoginWinControls />
+     
 
       {/* Background texture */}
       <Box sx={{
@@ -346,11 +320,6 @@ export default function LoginPage({ onLogin }) {
               >
                 {loading ? <CircularProgress size={20} color="inherit" /> : "SIGN IN"}
               </Button>
-
-              <Typography variant="caption" textAlign="center"
-                sx={{ opacity: 0.35, fontFamily: "monospace", fontSize: 11 }}>
-                Default: admin / admin123
-              </Typography>
             </>
           )}
         </Box>

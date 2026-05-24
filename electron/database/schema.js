@@ -38,8 +38,6 @@ db.serialize(() => {
   db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_username ON employees(username)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(is_active)`);
 
-  // Insert default admin if none exists (password: admin123)
-  // Password is stored as plain text — ISP should change after first login
   db.run(`
     INSERT OR IGNORE INTO employees (username, password, full_name, role, permissions)
     VALUES ('admin', 'admin123', 'Administrator', 'admin', '{"all":true}')
@@ -63,7 +61,7 @@ db.serialize(() => {
   db.run(`CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name)`);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SERVICES  (no FK deps — create first)
+  // SERVICES
   // ══════════════════════════════════════════════════════════════════════════
   db.run(`
     CREATE TABLE IF NOT EXISTS services (
@@ -80,7 +78,7 @@ db.serialize(() => {
 
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STATIONS (OLT / aggregation nodes)
+  // STATIONS
   // ══════════════════════════════════════════════════════════════════════════
   db.run(`
     CREATE TABLE IF NOT EXISTS stations (
@@ -88,7 +86,7 @@ db.serialize(() => {
       name       TEXT    NOT NULL,
       lat        REAL    NOT NULL,
       lng        REAL    NOT NULL,
-      type       TEXT    DEFAULT 'OLT',   -- OLT | HUB | POP
+      type       TEXT    DEFAULT 'OLT',
       capacity   INTEGER DEFAULT 0,
       notes      TEXT,
       coverage_m INTEGER DEFAULT 500,
@@ -100,7 +98,7 @@ db.serialize(() => {
 
 
   // ══════════════════════════════════════════════════════════════════════════
-  // FIBER BOXES (distribution / splice boxes)
+  // FIBER BOXES
   // ══════════════════════════════════════════════════════════════════════════
   db.run(`
     CREATE TABLE IF NOT EXISTS fiber_boxes (
@@ -108,7 +106,7 @@ db.serialize(() => {
       name       TEXT    NOT NULL,
       lat        REAL    NOT NULL,
       lng        REAL    NOT NULL,
-      type       TEXT    DEFAULT 'SPLICE',  -- SPLICE | DISTRIBUTION | CLOSURE
+      type       TEXT    DEFAULT 'SPLICE',
       port_count INTEGER DEFAULT 0,
       station_id INTEGER REFERENCES stations(id),
       notes      TEXT,
@@ -125,76 +123,49 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
-
-      -- identity
       username         TEXT,
       name             TEXT    NOT NULL,
       pppoe_password   TEXT,
-
-      -- contact
       mobile           TEXT,
       address          TEXT,
       region           TEXT,
       building         TEXT,
       notes            TEXT,
-
-      -- network / ISP
       service_id       INTEGER REFERENCES services(id) ON UPDATE CASCADE ON DELETE SET NULL,
       reseller         TEXT,
       collector        TEXT,
       switch_name      TEXT,
       mac_address      TEXT,
       nationality      TEXT,
-
-      -- location
       lat              REAL,
       lng              REAL,
-
-      -- billing
       price            REAL    DEFAULT 0,
       balance          REAL    DEFAULT 0,
-
-      -- quota
       daily_quota      INTEGER DEFAULT 0,
       daily_free_quota INTEGER DEFAULT 0,
       used_quota       INTEGER DEFAULT 0,
-
-      -- status
       expiry_date      TEXT,
       blocked          INTEGER DEFAULT 0,
       status           TEXT    DEFAULT 'INACTIVE',
       role             TEXT    DEFAULT 'USER',
-
-      -- soft delete
       is_deleted       INTEGER DEFAULT 0,
       deleted_at       TEXT,
       deleted_by       TEXT,
       delete_reason    TEXT,
-
-      -- company link
       company_id       INTEGER REFERENCES companies(id),
-
       created_at       TEXT    DEFAULT CURRENT_TIMESTAMP,
       updated_at       TEXT    DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username
-            ON users(username) WHERE username IS NOT NULL`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_name
-            ON users(name)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_service_id
-            ON users(service_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_status
-            ON users(status) WHERE is_deleted = 0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_expiry
-            ON users(expiry_date) WHERE is_deleted = 0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_is_deleted
-            ON users(is_deleted)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_company
-            ON users(company_id) WHERE COALESCE(is_deleted,0)=0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_users_deleted_id
-            ON users(is_deleted, id DESC)`);
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_name ON users(name)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_service_id ON users(service_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_status ON users(status) WHERE is_deleted = 0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_expiry ON users(expiry_date) WHERE is_deleted = 0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_is_deleted ON users(is_deleted)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id) WHERE COALESCE(is_deleted,0)=0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_deleted_id ON users(is_deleted, id DESC)`);
 
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -206,34 +177,25 @@ db.serialize(() => {
       invoice_number TEXT    UNIQUE,
       user_id        INTEGER NOT NULL REFERENCES users(id),
       service_id     INTEGER REFERENCES services(id) ON DELETE SET NULL,
-
-      type           TEXT    NOT NULL DEFAULT 'MONTHLY',  -- MONTHLY | MANUAL
+      type           TEXT    NOT NULL DEFAULT 'MONTHLY',
       month          TEXT,
       amount         REAL    NOT NULL DEFAULT 0,
-
-      status         TEXT    DEFAULT 'UNPAID',            -- UNPAID | PARTIAL | PAID
+      status         TEXT    DEFAULT 'UNPAID',
       affects_expiry INTEGER DEFAULT 1,
       note           TEXT,
-
       is_deleted     INTEGER DEFAULT 0,
       deleted_at     TEXT,
       deleted_by     TEXT,
       delete_reason  TEXT,
-
       paid_at        TEXT,
       created_at     TEXT    DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_user_month
-            ON invoices(user_id, month)
-            WHERE type = 'MONTHLY' AND is_deleted = 0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_user_id
-            ON invoices(user_id) WHERE is_deleted = 0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_month_status
-            ON invoices(month, status) WHERE is_deleted = 0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_is_deleted
-            ON invoices(is_deleted)`);
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_user_month ON invoices(user_id, month) WHERE type = 'MONTHLY' AND is_deleted = 0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id) WHERE is_deleted = 0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_month_status ON invoices(month, status) WHERE is_deleted = 0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_is_deleted ON invoices(is_deleted)`);
 
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -244,27 +206,21 @@ db.serialize(() => {
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER NOT NULL REFERENCES users(id),
       invoice_id INTEGER          REFERENCES invoices(id) ON DELETE SET NULL,
-
       amount     REAL    NOT NULL,
-      method     TEXT    DEFAULT 'CASH',  -- CASH | BANK | WHISH | OMT
+      method     TEXT    DEFAULT 'CASH',
       note       TEXT,
-
       is_deleted    INTEGER DEFAULT 0,
       deleted_at    TEXT,
       deleted_by    TEXT,
       delete_reason TEXT,
-
       paid_at    TEXT    NOT NULL,
       created_at TEXT    DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_user_date
-            ON payments(user_id, paid_at) WHERE is_deleted = 0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_invoice
-            ON payments(invoice_id) WHERE is_deleted = 0`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_is_deleted
-            ON payments(is_deleted)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_user_date ON payments(user_id, paid_at) WHERE is_deleted = 0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id) WHERE is_deleted = 0`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_is_deleted ON payments(is_deleted)`);
 
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -274,22 +230,17 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS wallet_transactions (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER NOT NULL REFERENCES users(id),
-
-      type       TEXT    NOT NULL,   -- CREDIT | DEBIT
+      type       TEXT    NOT NULL,
       amount     REAL    NOT NULL,
-
-      ref_type   TEXT,               -- PAYMENT | INVOICE | MANUAL
+      ref_type   TEXT,
       ref_id     INTEGER,
-
       note       TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_user
-            ON wallet_transactions(user_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_ref
-            ON wallet_transactions(ref_type, ref_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_user ON wallet_transactions(user_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_wallet_ref ON wallet_transactions(ref_type, ref_id)`);
 
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -298,24 +249,21 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS drawer_transactions (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
-
-      type       TEXT    NOT NULL,   -- IN | OUT
+      type       TEXT    NOT NULL,
       amount     REAL    NOT NULL,
-
-      reason     TEXT,               -- PAYMENT | EXPENSE | REFUND | MANUAL
-      ref_type   TEXT,               -- invoice | payment | manual
+      amount_usd REAL    DEFAULT 0,
+      amount_lbp REAL    DEFAULT 0,
+      reason     TEXT,
+      ref_type   TEXT,
       ref_id     INTEGER,
-
       actor      TEXT,
       note       TEXT,
       company_id INTEGER REFERENCES companies(id),
-
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  db.run(`CREATE INDEX IF NOT EXISTS idx_drawer_date
-            ON drawer_transactions(created_at)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_drawer_date ON drawer_transactions(created_at)`);
 
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -346,17 +294,13 @@ db.serialize(() => {
     )
   `);
 
-  db.run(`CREATE INDEX IF NOT EXISTS idx_activity_entity
-            ON activity_log(entity, entity_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_activity_date
-            ON activity_log(created_at DESC)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_activity_actor
-            ON activity_log(actor)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity, entity_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(created_at DESC)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_activity_actor ON activity_log(actor)`);
 
 
   // ══════════════════════════════════════════════════════════════════════════
   // SAFE MIGRATIONS
-  // No-ops on fresh installs. Safely add columns to existing databases.
   // ══════════════════════════════════════════════════════════════════════════
 
   // users
@@ -369,10 +313,14 @@ db.serialize(() => {
   db.run(`ALTER TABLE users ADD COLUMN delete_reason TEXT`,   () => {});
   db.run(`ALTER TABLE users ADD COLUMN company_id    INTEGER REFERENCES companies(id)`, () => {});
 
-  // drawer_transactions: tag each transaction with a company
+  // drawer_transactions
   db.run(`ALTER TABLE drawer_transactions ADD COLUMN company_id INTEGER REFERENCES companies(id)`, () => {});
+  db.run(`ALTER TABLE drawer_transactions ADD COLUMN amount_usd REAL DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE pos_drawer_transactions ADD COLUMN amount_usd REAL DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE pos_drawer_transactions ADD COLUMN amount_lbp REAL DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE drawer_transactions ADD COLUMN amount_lbp REAL DEFAULT 0`, () => {});
 
-  // services: add cost (what ISP pays to provider) and company link
+  // services
   db.run(`ALTER TABLE services ADD COLUMN cost       REAL    DEFAULT 0`,    () => {});
   db.run(`ALTER TABLE services ADD COLUMN company_id INTEGER REFERENCES companies(id)`, () => {});
 
@@ -395,15 +343,17 @@ db.serialize(() => {
 
 
   // ══════════════════════════════════════════════════════════════════════════
-  // DATA FIX MIGRATIONS  (idempotent — safe to run multiple times)
+  // DATA FIX MIGRATIONS
   // ══════════════════════════════════════════════════════════════════════════
   db.run(`UPDATE users    SET is_deleted = 0 WHERE is_deleted IS NULL`);
   db.run(`UPDATE invoices SET is_deleted = 0 WHERE is_deleted IS NULL`);
   db.run(`UPDATE payments SET is_deleted = 0 WHERE is_deleted IS NULL`);
 
+  // Copy existing amount into amount_usd for old drawer records
+  db.run(`UPDATE drawer_transactions SET amount_usd = COALESCE(amount, 0) WHERE COALESCE(amount_usd, 0) = 0`);
+  db.run(`UPDATE pos_drawer_transactions SET amount_usd = COALESCE(amount, 0) WHERE COALESCE(amount_usd, 0) = 0`);
 
-
-  // pos_sales customer column migration (for existing DBs)
+  // pos_sales customer column migration
   db.run(`ALTER TABLE pos_sales ADD COLUMN customer TEXT`, () => {});
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -484,15 +434,17 @@ db.serialize(() => {
   db.run(`CREATE INDEX IF NOT EXISTS idx_pos_sale_items_item ON pos_sale_items(item_id)`);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // POS — DRAWER TRANSACTIONS (completely separate from ISP drawer)
+  // POS — DRAWER TRANSACTIONS
   // ══════════════════════════════════════════════════════════════════════════
   db.run(`
     CREATE TABLE IF NOT EXISTS pos_drawer_transactions (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      type       TEXT    NOT NULL,   -- IN | OUT
-      amount     REAL    NOT NULL,
-      reason     TEXT,               -- SALE | REFUND | EXPENSE | MANUAL
-      ref_type   TEXT,               -- pos_sale | manual
+      type       TEXT    NOT NULL,
+      amount     REAL    NOT NULL DEFAULT 0,
+      amount_usd REAL    DEFAULT 0,
+      amount_lbp REAL    DEFAULT 0,
+      reason     TEXT,
+      ref_type   TEXT,
       ref_id     INTEGER,
       method     TEXT    DEFAULT 'CASH',
       actor      TEXT,
@@ -502,9 +454,49 @@ db.serialize(() => {
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_pos_drawer_date ON pos_drawer_transactions(created_at)`);
 
-
-    // Default settings
+  // Default settings
   db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('pos_enabled', '1')`);
+
+
+  // ══ POS — INVOICES (Pay Later / Partial) ═══════════════════════════════════
+  db.run(`CREATE TABLE IF NOT EXISTS pos_invoices (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_number  TEXT    UNIQUE,
+    sale_id         INTEGER REFERENCES pos_sales(id),
+    customer_id     INTEGER NOT NULL REFERENCES pos_customers(id),
+    customer_name   TEXT,
+    total           REAL    NOT NULL DEFAULT 0,
+    paid            REAL    DEFAULT 0,
+    remaining       REAL    NOT NULL DEFAULT 0,
+    status          TEXT    DEFAULT 'UNPAID',
+    note            TEXT,
+    paid_at         TEXT,
+    created_at      TEXT    DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_pos_invoices_customer ON pos_invoices(customer_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_pos_invoices_status ON pos_invoices(status)`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS pos_invoice_payments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_id INTEGER NOT NULL REFERENCES pos_invoices(id),
+    amount_usd REAL    DEFAULT 0,
+    amount_lbp REAL    DEFAULT 0,
+    method     TEXT    DEFAULT 'CASH',
+    actor      TEXT,
+    note       TEXT,
+    paid_at    TEXT    DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_pos_inv_payments ON pos_invoice_payments(invoice_id)`);
+
+  // Safe migrations for pos_sales extra columns
+  db.run(`ALTER TABLE pos_sales ADD COLUMN customer_id INTEGER REFERENCES pos_customers(id)`, () => {});
+  db.run(`ALTER TABLE pos_sales ADD COLUMN shift_id INTEGER`, () => {});
+  db.run(`ALTER TABLE pos_sale_items ADD COLUMN discount REAL DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE pos_drawer_transactions ADD COLUMN amount_usd REAL DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE pos_drawer_transactions ADD COLUMN amount_lbp REAL DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE pos_customers ADD COLUMN total_spent REAL DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE pos_customers ADD COLUMN visit_count INTEGER DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE pos_customers ADD COLUMN last_visit TEXT`, () => {});
 
   console.log("✅ Database initialized");
 });

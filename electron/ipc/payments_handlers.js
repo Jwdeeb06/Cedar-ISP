@@ -3,18 +3,18 @@ const { logAction } = require("../utils/activityLog");
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: push a cash IN entry to drawer_transactions
 // ─────────────────────────────────────────────────────────────────────────────
-function drawerIn(db, { amount, reason = "PAYMENT", ref_type = "payment", ref_id = null, actor = "system", note = null, company_id = null }) {
+function drawerIn(db, { amount_usd = 0, amount_lbp = 0, reason = "PAYMENT", ref_type = "payment", ref_id = null, actor = "system", note = null, company_id = null }) {
+  const amount = amount_usd; // legacy column
   db.run(
-    `INSERT INTO drawer_transactions (type, amount, reason, ref_type, ref_id, actor, note, company_id)
-     VALUES ('IN', ?, ?, ?, ?, ?, ?, ?)`,
-    [amount, reason, ref_type, ref_id, actor, note || null, company_id || null],
+    `INSERT INTO drawer_transactions (type, amount, amount_usd, amount_lbp, reason, ref_type, ref_id, actor, note, company_id)
+     VALUES ('IN', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [amount, amount_usd, amount_lbp, reason, ref_type, ref_id, actor, note || null, company_id || null],
     () => {}
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: recalc invoice status from actual payments sum
-// Returns 'UNPAID' | 'PARTIAL' | 'PAID'
 // ─────────────────────────────────────────────────────────────────────────────
 function recalcInvoiceStatus(db, invoiceId) {
   return new Promise((resolve, reject) => {
@@ -42,34 +42,17 @@ function recalcInvoiceStatus(db, invoiceId) {
 
 function registerPaymentHandlers(ipcMain, db) {
 
-  // ── GET LBP RATE from settings ────────────────────────────────────────────
-  // Reads key "lbp_rate" from the settings table
+  // ── GET LBP RATE ──────────────────────────────────────────────────────────
   ipcMain.handle("get-lbp-rate", async () => {
     return new Promise((resolve, reject) => {
       db.get(`SELECT value FROM settings WHERE key = 'lbp_rate'`, [], (err, row) => {
         if (err) return reject(err);
-        const rate = Number(row?.value || 0);
-        resolve({ ok: true, rate });
+        resolve({ ok: true, rate: Number(row?.value || 0) });
       });
     });
   });
 
-  // ── PAY INVOICE (partial or full, USD or LBP or both) ────────────────────
-  //
-  // payload: {
-  //   invoice_id : number   (required)
-  //   usd_amount : number   (optional, 0 if not paying in USD)
-  //   lbp_amount : number   (optional, 0 if not paying in LBP — the RAW LBP value e.g. 9,000,000)
-  //   lbp_rate   : number   (required if lbp_amount > 0 — e.g. 90000)
-  //   method     : string   (CASH | BANK | WHISH | OMT)
-  //   note       : string
-  //   actor      : string
-  // }
-  //
-  // The handler converts LBP → USD, sums both, records ONE payment row,
-  // recalculates invoice status, extends expiry if now PAID+affects_expiry,
-  // and writes a drawer IN entry.
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── PAY INVOICE ───────────────────────────────────────────────────────────
   ipcMain.handle("pay-invoice", async (event, payload) => {
     const invoiceId = Number(payload?.invoice_id);
     const usdAmount = Number(payload?.usd_amount || 0);
@@ -79,7 +62,6 @@ function registerPaymentHandlers(ipcMain, db) {
     const note      = String(payload?.note   || "").trim() || null;
     const actor     = String(payload?.actor  || "system").trim();
 
-    // ── validation ──
     if (!Number.isFinite(invoiceId) || invoiceId <= 0)
       return { ok: false, reason: "INVALID_INVOICE" };
     if (usdAmount < 0 || lbpAmount < 0)
@@ -87,14 +69,13 @@ function registerPaymentHandlers(ipcMain, db) {
     if (lbpAmount > 0 && (!Number.isFinite(lbpRate) || lbpRate <= 0))
       return { ok: false, reason: "LBP_RATE_REQUIRED" };
 
-    // Convert LBP → USD
-    const lbpAsUsd   = lbpAmount > 0 ? lbpAmount / lbpRate : 0;
-    const totalUsd   = usdAmount + lbpAsUsd;
+    const lbpAsUsd = lbpAmount > 0 ? lbpAmount / lbpRate : 0;
+    const totalUsd = usdAmount + lbpAsUsd;
 
     if (totalUsd <= 0)
       return { ok: false, reason: "ZERO_AMOUNT" };
 
-    // ── load invoice ──
+    // Load invoice
     const inv = await new Promise((resolve, reject) =>
       db.get(
         `SELECT i.*, u.expiry_date, u.blocked, u.balance,
@@ -110,7 +91,7 @@ function registerPaymentHandlers(ipcMain, db) {
     if (!inv) return { ok: false, reason: "INVOICE_NOT_FOUND" };
     if (inv.status === "PAID") return { ok: false, reason: "ALREADY_PAID" };
 
-    // ── how much is already paid? ──
+    // How much already paid?
     const alreadyPaid = await new Promise((resolve, reject) =>
       db.get(
         `SELECT COALESCE(SUM(amount), 0) AS s FROM payments
@@ -122,25 +103,26 @@ function registerPaymentHandlers(ipcMain, db) {
 
     const invoiceAmount = Number(inv.amount || 0);
     const remaining     = invoiceAmount - alreadyPaid;
-
-    // Don't allow overpayment beyond invoice amount
-    const effectiveUsd = Math.min(totalUsd, remaining);
+    const effectiveUsd  = Math.min(totalUsd, remaining);
     if (effectiveUsd <= 0)
       return { ok: false, reason: "ALREADY_PAID" };
 
+    // Scale lbp/usd proportionally if capped
+    const scale        = totalUsd > 0 ? effectiveUsd / totalUsd : 1;
+    const effectiveUsdOnly = usdAmount * scale;
+    const effectiveLbp     = lbpAmount * scale;
+
     const nowIso = new Date().toISOString();
 
-    // Build note with LBP breakdown if relevant
     const paymentNote = [
       note,
       lbpAmount > 0 ? `LBP ${lbpAmount.toLocaleString()} @ ${lbpRate} = $${lbpAsUsd.toFixed(2)}` : null,
       usdAmount > 0 ? `USD $${usdAmount.toFixed(2)}` : null,
     ].filter(Boolean).join(" | ") || null;
 
-    // ── transaction ──
     await db_run(db, "BEGIN TRANSACTION");
     try {
-      // 1. Insert payment row
+      // 1. Insert payment
       const paymentId = await new Promise((resolve, reject) =>
         db.run(
           `INSERT INTO payments (user_id, invoice_id, amount, method, note, paid_at)
@@ -153,14 +135,13 @@ function registerPaymentHandlers(ipcMain, db) {
       // 2. Recalc invoice status
       const newStatus = await recalcInvoiceStatus(db, invoiceId);
       await db_run(db,
-        `UPDATE invoices SET status = ?, paid_at = ?
-         WHERE id = ?`,
+        `UPDATE invoices SET status = ?, paid_at = ? WHERE id = ?`,
         [newStatus, newStatus === "PAID" ? nowIso : inv.paid_at, invoiceId]
       );
 
-      // 3. If now fully PAID and affects_expiry → extend user expiry
+      // 3. Extend expiry if fully paid
       if (newStatus === "PAID" && Number(inv.affects_expiry) === 1 && Number(inv.blocked) !== 1) {
-        const base    = inv.expiry_date || nowIso.slice(0, 10);
+        const base      = inv.expiry_date || nowIso.slice(0, 10);
         const newExpiry = addOneMonthISO(base);
         await db_run(db,
           `UPDATE users SET expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -173,9 +154,10 @@ function registerPaymentHandlers(ipcMain, db) {
 
       await db_run(db, "COMMIT");
 
-      // 5. Drawer IN (fire-and-forget after commit)
+      // 5. Drawer IN — now records both USD and LBP separately
       drawerIn(db, {
-        amount:     effectiveUsd,
+        amount_usd: effectiveUsdOnly,
+        amount_lbp: effectiveLbp,
         reason:     "PAYMENT",
         ref_type:   "payment",
         ref_id:     paymentId,
@@ -194,8 +176,8 @@ function registerPaymentHandlers(ipcMain, db) {
 
       return {
         ok: true,
-        payment_id: paymentId,
-        paid_usd: effectiveUsd,
+        payment_id:     paymentId,
+        paid_usd:       effectiveUsd,
         invoice_status: newStatus,
       };
     } catch (e) {
@@ -204,8 +186,7 @@ function registerPaymentHandlers(ipcMain, db) {
     }
   });
 
-  // ── GET INVOICE WITH PAYMENT SUMMARY ─────────────────────────────────────
-  // Returns invoice row + paid_sum + remaining for the payment dialog
+  // ── GET INVOICE DETAIL ────────────────────────────────────────────────────
   ipcMain.handle("get-invoice-detail", async (event, invoiceId) => {
     invoiceId = Number(invoiceId);
     if (!Number.isFinite(invoiceId)) return null;
@@ -260,29 +241,21 @@ function registerPaymentHandlers(ipcMain, db) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Promisified db.run helper
-// ─────────────────────────────────────────────────────────────────────────────
 function db_run(db, sql, params = []) {
   return new Promise((resolve, reject) =>
     db.run(sql, params, (err) => (err ? reject(err) : resolve()))
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Add exactly one month to a YYYY-MM-DD string, clamping to last day
-// ─────────────────────────────────────────────────────────────────────────────
 function addOneMonthISO(isoDate) {
   const [y, m, d] = isoDate.split("-").map(Number);
-  const dt = new Date(y, m, d); // m is already 1-based so new Date(y, m, d) = +1 month
+  const dt = new Date(y, m, d);
   const yy = dt.getFullYear();
   const mm = String(dt.getMonth() + 1).padStart(2, "0");
   const dd = String(dt.getDate()).padStart(2, "0");
   return `${yy}-${mm}-${dd}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Recalc users.status based on blocked + expiry_date
-// ─────────────────────────────────────────────────────────────────────────────
 function recalcUserStatus(db, userId) {
   return new Promise((resolve, reject) => {
     db.get(

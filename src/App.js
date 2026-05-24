@@ -4,7 +4,7 @@ import { useParams, useLocation } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import { AuthContext } from "./context/AuthContext";
 import AppLayout from "./layout/AppLayout";
-import LoginPage     from "./pages/LoginPage";
+import LoginPage from "./pages/LoginPage";
 
 import Dashboard          from "./pages/Dashboard";
 import UsersListPage      from "./pages/Users/UsersListPage";
@@ -21,6 +21,7 @@ import PosPage            from "./pages/Pos/PosPage";
 import PosItemsPage       from "./pages/Pos/PosItemsPage";
 import PosSalesPage       from "./pages/Pos/PosSalesPage";
 import PosDrawerPage      from "./pages/Pos/PosDrawerPage";
+import PosCustomersPage   from "./pages/Pos/PosCustomersPage";
 import MapPage            from "./pages/Map/NetworkMapPage";
 import ActivityPage       from "./pages/ActivityLog/ActivityLogPage";
 import WhatsAppPage       from "./pages/WhatsApp/WhatsAppPage";
@@ -50,7 +51,6 @@ function getHomePage(employee) {
 export default function App() {
   const [employee, setEmployee] = useState(null);
 
-  // No employee — show login (which includes license check as step 1)
   if (!employee) {
     return (
       <LoginPage onLogin={(emp) => {
@@ -92,6 +92,7 @@ export default function App() {
             <Route path="pos/items"              element={<PosItemsPage />} />
             <Route path="pos/sales"              element={<PosSalesPage />} />
             <Route path="pos/drawer"             element={<PosDrawerPage />} />
+            <Route path="pos/customers"          element={<PosCustomersPage />} />
 
             {/* Map */}
             <Route path="map"                    element={<RequirePermission permission="map"><MapPage /></RequirePermission>} />
@@ -116,16 +117,12 @@ export default function App() {
 
             {/* No access */}
             <Route path="no-access" element={
-              <Box sx={{ display:"flex", flexDirection:"column", alignItems:"center",
-                justifyContent:"center", height:"60vh", gap:2 }}>
+              <Box sx={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"60vh", gap:2 }}>
                 <Typography variant="h4">🔒</Typography>
                 <Typography variant="h5" fontWeight={800}>No Access</Typography>
-                <Typography sx={{ opacity:0.6 }}>
-                  You don't have permission to access any pages. Contact your administrator.
-                </Typography>
+                <Typography sx={{ opacity:0.6 }}>You don't have permission to access any pages.</Typography>
               </Box>
             } />
-
           </Route>
         </Routes>
       </HashRouter>

@@ -26,29 +26,15 @@ const ROUTE_LABELS = {
 
 function getLabel(path) {
   if (ROUTE_LABELS[path]) return ROUTE_LABELS[path];
-
-  if (path.startsWith("/users/") && path.includes("/wallet")) {
-    return "Wallet";
-  }
-
-  if (path.startsWith("/users/") && path.includes("/invoices")) {
-    return "User Invoices";
-  }
-
-  if (path.startsWith("/drawer/company/")) {
-    return "Company Drawer";
-  }
-
-  return path
-    .replace(/^\//, "")
-    .replace(/\//g, " › ")
-    .replace(/-/g, " ");
+  if (path.startsWith("/users/") && path.includes("/wallet")) return "Wallet";
+  if (path.startsWith("/users/") && path.includes("/invoices")) return "User Invoices";
+  if (path.startsWith("/drawer/company/")) return "Company Drawer";
+  return path.replace(/^\//, "").replace(/\//g, " › ").replace(/-/g, " ");
 }
 
 export default function Navbar({ drawerWidth, title = "Cedar ISP" }) {
   const location = useLocation();
   const navigate = useNavigate();
-
   const label = getLabel(location.pathname);
 
   return (
@@ -60,92 +46,44 @@ export default function Navbar({ drawerWidth, title = "Cedar ISP" }) {
         left: drawerWidth,
         right: 0,
         height: 63,
-        zIndex: 1201,
+        zIndex: 100, // low — below sidepanels and drawers
 
         display: "flex",
         alignItems: "center",
         gap: 1,
         px: 1.5,
-
-        // Leave room for native Electron window buttons on Windows/Linux
         pr: "180px",
 
         bgcolor: "#f9fafb",
-
-
-        // Allows dragging the Electron window from the navbar
         WebkitAppRegion: "drag",
         userSelect: "none",
-
         borderBottom: "none",
-boxShadow: "none",
+        boxShadow: "none",
       }}
     >
-      <Box
-        sx={{
-          display: "flex",
-          gap: 0.25,
-          mr: 0.75,
-          WebkitAppRegion: "no-drag",
-        }}
-      >
+      <Box sx={{ display: "flex", gap: 0.25, mr: 0.75, WebkitAppRegion: "no-drag" }}>
         <Tooltip title="Back">
-          <IconButton
-            size="small"
-            onClick={() => navigate(-1)}
-            sx={{
-              width: 28,
-              height: 28,
-              borderRadius: 1.5,
-              color: "text.secondary",
-              "&:hover": { bgcolor: "rgba(0,0,0,0.06)" },
-            }}
-          >
+          <IconButton size="small" onClick={() => navigate(-1)}
+            sx={{ width: 28, height: 28, borderRadius: 1.5, color: "text.secondary",
+              "&:hover": { bgcolor: "rgba(0,0,0,0.06)" } }}>
             <ArrowBackIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-
         <Tooltip title="Forward">
-          <IconButton
-            size="small"
-            onClick={() => navigate(1)}
-            sx={{
-              width: 28,
-              height: 28,
-              borderRadius: 1.5,
-              color: "text.secondary",
-              "&:hover": { bgcolor: "rgba(0,0,0,0.06)" },
-            }}
-          >
+          <IconButton size="small" onClick={() => navigate(1)}
+            sx={{ width: 28, height: 28, borderRadius: 1.5, color: "text.secondary",
+              "&:hover": { bgcolor: "rgba(0,0,0,0.06)" } }}>
             <ArrowForwardIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
       </Box>
 
-
-
-      <Typography
-        sx={{
-          fontSize: 15,
-          fontWeight: 800,
-          color: "text.primary",
-          whiteSpace: "nowrap",
-        }}
-      >
+      <Typography sx={{ fontSize: 15, fontWeight: 800, color: "text.primary", whiteSpace: "nowrap" }}>
         {label}
       </Typography>
 
-      <Typography
-        sx={{
-          fontSize: 12.5,
-          fontWeight: 600,
-          color: "text.secondary",
-          opacity: 0.65,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
+      <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: "text.secondary",
+        opacity: 0.65, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {title}
       </Typography>
     </Box>
