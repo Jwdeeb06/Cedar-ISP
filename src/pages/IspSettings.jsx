@@ -16,6 +16,9 @@ import StorageIcon          from "@mui/icons-material/Storage";
 import FileDownloadIcon     from "@mui/icons-material/FileDownload";
 import FileUploadIcon       from "@mui/icons-material/FileUpload";
 import WarningAmberIcon     from "@mui/icons-material/WarningAmber";
+import GavelIcon            from "@mui/icons-material/Gavel";
+import PrivacyTipIcon       from "@mui/icons-material/PrivacyTip";
+import OpenInNewIcon        from "@mui/icons-material/OpenInNew";
 import LocationPicker       from "../components/LocationPicker";
 
 function Section({ icon, title, subtitle, children, borderColor }) {
@@ -102,6 +105,53 @@ function AutoBackupStatus({ selectedBackup, setSelectedBackup }) {
   );
 }
 
+// ── Legal Doc Button ──────────────────────────────────────────────────────────
+function LegalDocButton({ icon, title, subtitle, doc }) {
+  const [opening, setOpening] = useState(false);
+
+  const open = async () => {
+    setOpening(true);
+    try {
+      await window.api.openLegalDoc?.(doc);
+    } finally {
+      setTimeout(() => setOpening(false), 1000);
+    }
+  };
+
+  return (
+    <Box sx={{
+      p: 2, borderRadius: 2, border: "1px solid", borderColor: "grey.200",
+      bgcolor: "grey.50", display: "flex", alignItems: "center",
+      justifyContent: "space-between", gap: 2,
+    }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <Box sx={{
+          width: 38, height: 38, borderRadius: 2, bgcolor: "white",
+          border: "1px solid", borderColor: "grey.300",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "primary.main", flexShrink: 0,
+        }}>
+          {icon}
+        </Box>
+        <Box>
+          <Typography variant="body2" fontWeight={700}>{title}</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.55 }}>{subtitle}</Typography>
+        </Box>
+      </Box>
+      <Button
+        variant="outlined"
+        size="small"
+        endIcon={<OpenInNewIcon sx={{ fontSize: 15 }} />}
+        onClick={open}
+        disabled={opening}
+        sx={{ fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}
+      >
+        {opening ? "Opening…" : "Open"}
+      </Button>
+    </Box>
+  );
+}
+
 export default function IspSettings() {
   const [form, setForm] = useState({
     isp_name: "", isp_number: "", isp_phone: "", isp_address: "",
@@ -118,7 +168,6 @@ export default function IspSettings() {
   const [posEnabled,     setPosEnabled]     = useState(true);
   const [activeTab,      setActiveTab]      = useState(0);
 
-  // mapLat/mapLng: null = no pin set (map still shows at default center)
   const [mapLat, setMapLat] = useState(null);
   const [mapLng, setMapLng] = useState(null);
 
@@ -127,7 +176,6 @@ export default function IspSettings() {
       const data = await window.api.getSettings();
       const lat  = data.map_lat && data.map_lat !== "" ? Number(data.map_lat) : null;
       const lng  = data.map_lng && data.map_lng !== "" ? Number(data.map_lng) : null;
-      // Only set if valid numbers, otherwise keep null (no pin, map uses fallback center)
       setMapLat((lat !== null && !isNaN(lat)) ? lat : null);
       setMapLng((lng !== null && !isNaN(lng)) ? lng : null);
       setForm({
@@ -150,7 +198,6 @@ export default function IspSettings() {
 
   const set = (key) => (e) => setForm(p => ({ ...p, [key]: e.target.value }));
 
-  // When user types lat/lng manually, sync both form text and map pin
   const handleLatChange = (e) => {
     const raw = e.target.value;
     setForm(p => ({ ...p, map_lat: raw }));
@@ -165,15 +212,10 @@ export default function IspSettings() {
     setMapLng(raw === "" || isNaN(v) ? null : v);
   };
 
-  // When user clicks the map, update pin + text fields
   const handleMapClick = (la, ln) => {
     setMapLat(la);
     setMapLng(ln);
-    setForm(p => ({
-      ...p,
-      map_lat: String(la),
-      map_lng: String(ln),
-    }));
+    setForm(p => ({ ...p, map_lat: String(la), map_lng: String(ln) }));
   };
 
   const save = async () => {
@@ -235,6 +277,7 @@ export default function IspSettings() {
         <Tab label="Database" />
         <Tab label="Map" />
         <Tab label="Point of Sale" />
+        <Tab label="Legal" />
       </Tabs>
 
       {msg.text && (
@@ -400,8 +443,6 @@ export default function IspSettings() {
       {/* ── MAP TAB ── */}
       {activeTab === 3 && (
         <Box sx={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 3, alignItems: "start" }}>
-
-          {/* Left: coordinate inputs */}
           <Section icon={<MapIcon fontSize="small" />}
             title="Map Default Location" subtitle="Enter coordinates or click the map">
             <FieldRow label="Latitude" hint="North/South (e.g. 33.5731)">
@@ -431,7 +472,6 @@ export default function IspSettings() {
             )}
           </Section>
 
-          {/* Right: live map — always visible, no blocking condition */}
           <Box>
             <Typography variant="caption" fontWeight={700}
               sx={{ opacity: 0.6, display: "block", mb: 0.75, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -467,13 +507,72 @@ export default function IspSettings() {
         </Box>
       )}
 
-      <Divider sx={{ mt: 3, mb: 2.5 }} />
-      <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2 }}>
-        <Button variant="contained" startIcon={<SaveIcon />}
-          onClick={save} disabled={saving} sx={{ fontWeight: 800, px: 4, height: 44 }}>
-          {saving ? "Saving…" : "Save All Settings"}
-        </Button>
-      </Box>
+      {/* ── LEGAL TAB ── */}
+      {activeTab === 5 && (
+        <Box sx={{ maxWidth: CONTENT_WIDTH, display: "flex", flexDirection: "column", gap: 2.5 }}>
+
+          <Section
+            icon={<GavelIcon fontSize="small" />}
+            title="Legal Documents"
+            subtitle="CedarISP software agreements and policies"
+          >
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: 0.5 }}>
+              <LegalDocButton
+                doc="terms"
+                icon={<GavelIcon fontSize="small" />}
+                title="Terms of Service & EULA"
+                subtitle="Software license, restrictions, liability, and usage terms"
+              />
+              <LegalDocButton
+                doc="privacy"
+                icon={<PrivacyTipIcon fontSize="small" />}
+                title="Privacy Policy"
+                subtitle="Data collection, storage, license validation, and client responsibilities"
+              />
+            </Box>
+          </Section>
+
+          <Paper elevation={0} sx={{
+            borderRadius: 3, border: "1.5px solid", borderColor: "grey.200", overflow: "hidden",
+          }}>
+            <Box sx={{ px: 2.5, py: 2, bgcolor: "grey.50", borderBottom: "1px solid", borderColor: "grey.200" }}>
+              <Typography variant="subtitle2" fontWeight={800}>Contact & Support</Typography>
+            </Box>
+            <Box sx={{ px: 2.5, py: 2, display: "flex", flexDirection: "column", gap: 0.75 }}>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Typography variant="body2" sx={{ opacity: 0.5, width: 120, flexShrink: 0 }}>Developer</Typography>
+                <Typography variant="body2" fontWeight={600}>Jawad Deeb</Typography>
+              </Box>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Typography variant="body2" sx={{ opacity: 0.5, width: 120, flexShrink: 0 }}>Email</Typography>
+                <Typography variant="body2" fontWeight={600}>Jawaddeeb08@gmail.com</Typography>
+              </Box>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Typography variant="body2" sx={{ opacity: 0.5, width: 120, flexShrink: 0 }}>Jurisdiction</Typography>
+                <Typography variant="body2" fontWeight={600}>Beirut, Lebanon</Typography>
+              </Box>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Typography variant="body2" sx={{ opacity: 0.5, width: 120, flexShrink: 0 }}>Governing Law</Typography>
+                <Typography variant="body2" fontWeight={600}>Republic of Lebanon</Typography>
+              </Box>
+            </Box>
+          </Paper>
+
+        </Box>
+      )}
+
+      {/* Save button — hidden on Legal tab since nothing to save there */}
+      {activeTab !== 5 && (
+        <>
+          <Divider sx={{ mt: 3, mb: 2.5 }} />
+          <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2 }}>
+            <Button variant="contained" startIcon={<SaveIcon />}
+              onClick={save} disabled={saving} sx={{ fontWeight: 800, px: 4, height: 44 }}>
+              {saving ? "Saving…" : "Save All Settings"}
+            </Button>
+          </Box>
+        </>
+      )}
 
     </Box>
   );

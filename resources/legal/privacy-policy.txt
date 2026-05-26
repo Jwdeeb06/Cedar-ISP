@@ -1,0 +1,267 @@
+================================================================
+CEDARISSP PRIVACY POLICY
+================================================================
+Application: CedarISP
+Developer:   Jawad Deeb
+Contact:     Jawaddeeb08@gmail.com
+Location:    Beirut, Lebanon
+================================================================
+
+1. INTRODUCTION
+---------------
+This Privacy Policy explains how CedarISP collects, stores,
+uses, and protects information when the CedarISP desktop
+application is installed, accessed, or used.
+
+CedarISP is a desktop software application designed for
+Internet Service Provider business management. It includes
+features for subscriber management, invoices, payments, wallet
+balances, cash drawer records, POS operations, employees,
+permissions, activity logs, local backups, network mapping,
+prepared WhatsApp messages, and license validation.
+
+CedarISP is intended for business and professional use only.
+
+By installing or using CedarISP, you agree to this Privacy
+Policy.
+
+
+2. WHO CONTROLS THE DATA
+------------------------
+The business or person using CedarISP is responsible for the
+business data entered into the application. This includes
+subscriber data, customer data, employee data, invoices,
+payments, POS records, drawer records, network map
+information, exports, backups, and any other local business
+records.
+
+Jawad Deeb does not control, monitor, or access the local
+database stored on the client's computer, except where the
+client voluntarily provides access during support.
+
+Jawad Deeb only processes limited license validation and
+support-related information as described in this Privacy
+Policy.
+
+
+3. LOCAL DATA STORED BY CEDARISSP
+----------------------------------
+CedarISP stores most application data locally on the client's
+computer using a local SQLite database. This local data may
+include, but is not limited to:
+
+Subscriber Data:
+  - Subscriber ID, username, full name
+  - PPPoE / connection password
+  - Mobile number, address, region, building, notes
+  - Service plan, reseller, collector, switch name
+  - MAC address, nationality, coordinates
+  - Price, balance, quotas, expiry date
+  - Blocked/account status, role, archive status
+  - Company/provider link, timestamps
+
+POS Customer Data:
+  - Customer name, phone number, email
+  - Purchase history, unpaid balance
+  - POS invoices and payment records
+
+Employee Data:
+  - Username, password hash (never plain text), role
+  - Permissions and activity records
+
+Financial and Business Data:
+  - Invoices, payments, wallet transactions
+  - Cash drawer transactions, POS sales and refunds
+  - POS stock, service plans, companies, reports
+  - Activity logs
+
+Map and Network Data:
+  - Subscriber coordinates, stations, fiber boxes
+  - Network map markers, default map location settings
+
+
+4. LICENSE VALIDATION DATA
+--------------------------
+CedarISP validates the license online on each login.
+
+During license validation, CedarISP may send and store:
+  - Login or validation time
+  - License name, client name, or license identifier
+  - Public IP address
+  - Validation result (success or failure)
+  - Basic request or security metadata
+
+This data is used for license validation, license
+enforcement, fraud prevention, abuse detection, security
+monitoring, support, and preventing unauthorized use.
+
+License validation is required. If the license cannot be
+validated, access to the application may be blocked.
+
+
+5. PUBLIC IP ADDRESS
+--------------------
+CedarISP collects the public IP address during license
+validation to verify license activity, detect abuse, protect
+the license system, and support clients. The public IP address
+is not used to access the client's local database.
+
+
+6. LICENSE LOG RETENTION
+------------------------
+License validation logs may be kept for as long as reasonably
+necessary for license enforcement, fraud prevention, abuse
+detection, security, troubleshooting, support, legal
+protection, and business records. Logs may be deleted or
+minimized when no longer needed.
+
+
+7. NO ACCESS TO LOCAL CLIENT DATABASE
+--------------------------------------
+Jawad Deeb does not automatically receive, upload, copy, or
+access the local CedarISP database. The client's subscriber
+data, invoices, payments, POS records, employee records, and
+local business data remain on the client's device unless the
+client chooses to export, share, transfer, back up, or provide
+them for support.
+
+
+8. SUPPORT ACCESS
+-----------------
+Standard support hours:
+  Monday to Friday, 10:00 AM - 4:00 PM Lebanon time
+  (excluding holidays and unavailable periods)
+
+Remote support is provided only when the client voluntarily
+grants access. Sensitive or urgent support outside these hours
+may require an additional fee. The client is responsible for
+ensuring they are authorized to share any information provided
+during support.
+
+
+9. LOCAL BACKUPS
+----------------
+CedarISP may create automatic local backups on startup,
+keeping approximately the last seven days. Backups are stored
+locally on the client's computer, typically at:
+
+  C:\Users\[User]\AppData\Roaming\isp-management-system\backups
+
+Backup files may contain sensitive business, subscriber,
+customer, employee, payment, POS, and financial information.
+The client is responsible for protecting, copying, deleting,
+securing, and restoring local backup files.
+
+
+10. DATA EXPORTS
+----------------
+CedarISP may allow import and export of data including Excel
+files. Exported files may contain sensitive information. Once
+exported, the client is fully responsible for that data.
+
+
+11. WHATSAPP MESSAGES
+---------------------
+CedarISP may prepare WhatsApp messages and redirect the client
+to WhatsApp or a related service. CedarISP does not send bulk
+spam and does not store sent message history unless separately
+configured. The client is responsible for all message content,
+recipient consent, and compliance with WhatsApp terms and
+applicable laws.
+
+
+12. PAYMENT AND FINANCIAL DATA
+-------------------------------
+CedarISP does not process online card payments. The app
+records cash and manual payments entered by the client or
+employees. CedarISP does not intentionally store credit card
+numbers, bank card details, or online banking credentials.
+
+
+13. THIRD-PARTY SERVICES
+-------------------------
+CedarISP may use or interact with:
+  - A private license validation system (developer-controlled)
+  - Hosting/infrastructure providers for license validation
+  - GitHub or website hosting for software download
+  - Map services such as OpenStreetMap
+  - WhatsApp or related services (message redirect only)
+  - Remote support tools (when voluntarily used)
+
+Third-party services are governed by their own privacy
+policies. Jawad Deeb is not responsible for third-party
+availability, policies, security, or actions.
+
+
+14. SECURITY
+------------
+CedarISP uses reasonable technical measures including local
+database storage and password hashing. No software can be
+guaranteed completely secure. The client is responsible for
+protecting their device, using strong passwords, restricting
+employee permissions, protecting backup and exported files,
+and using antivirus and device security tools.
+
+
+15. DATA DELETION
+-----------------
+Most CedarISP data is stored locally. The client is
+responsible for deleting or managing local data. Uninstalling
+CedarISP may not automatically delete all databases, backups,
+exports, or configuration files. The client should manually
+verify and delete remaining files if desired.
+
+
+16. CLIENT RESPONSIBILITIES
+----------------------------
+The client is responsible for:
+  - Obtaining legally required consent from subscribers,
+    customers, and employees
+  - Entering accurate data
+  - Securing devices and backups
+  - Managing employee access and permissions
+  - Complying with privacy, telecom, employment, accounting,
+    tax, and business laws
+  - Handling subscriber/customer privacy requests
+  - Protecting exported data
+  - Verifying financial and invoice records
+
+
+17. PRIVACY REQUESTS
+---------------------
+For local business data, subscribers and employees should
+contact the business that operates CedarISP. Jawad Deeb does
+not normally have access to the local business database.
+
+For license-related data, contact:
+  Jawaddeeb08@gmail.com
+
+Requests may be refused, limited, or delayed where retention
+is necessary for license enforcement, fraud prevention,
+security, legal compliance, or protection of rights.
+
+
+18. CHILDREN'S DATA
+--------------------
+CedarISP is intended for business and professional use only.
+It is not intended for use by children. Clients should not
+enter children's personal information without a lawful reason
+and any required consent.
+
+
+19. CHANGES TO THIS PRIVACY POLICY
+------------------------------------
+This Privacy Policy may be updated from time to time. The
+updated version applies from the effective date shown or from
+the date it is made available. Continued use of CedarISP
+after an update means acceptance of the updated Privacy Policy.
+
+
+20. CONTACT
+-----------
+Jawad Deeb
+Email: Jawaddeeb08@gmail.com
+
+================================================================
+END OF PRIVACY POLICY
+================================================================

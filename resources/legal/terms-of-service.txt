@@ -1,0 +1,373 @@
+================================================================
+CEDARISSP TERMS OF SERVICE AND END USER LICENSE AGREEMENT
+================================================================
+Application: CedarISP
+Developer:   Jawad Deeb
+Contact:     Jawaddeeb08@gmail.com
+Governing Law: Lebanon
+Jurisdiction:  Beirut, Lebanon
+================================================================
+
+1. AGREEMENT
+------------
+These Terms of Service and End User License Agreement govern
+the installation, access, and use of CedarISP.
+
+CedarISP is desktop software designed for ISP business
+management, including subscriber management, invoices,
+payments, wallet balances, cash drawer records, POS
+operations, employees, permissions, activity logs, local
+backups, network mapping, prepared WhatsApp messages, and
+license validation.
+
+By installing, activating, accessing, or using CedarISP, you
+agree to these Terms. If you do not agree, you must not
+install, access, activate, or use CedarISP.
+
+
+2. BUSINESS USE ONLY
+---------------------
+CedarISP is intended only for business and professional use
+by adults or authorized business representatives. It is not
+intended for personal, household, consumer, or children's use.
+
+
+3. LICENSE GRANT
+----------------
+Subject to these Terms and any agreed payment terms, Jawad
+Deeb grants the client a limited, non-exclusive,
+non-transferable, revocable license to install and use
+CedarISP for the internal business operations of one business.
+
+The client does not own CedarISP. The client receives only a
+license to use the software under these Terms.
+
+
+4. ONE BUSINESS, MULTIPLE PCs
+------------------------------
+The CedarISP license may be used by the same licensed business
+on multiple PCs, unless a separate written agreement states
+otherwise. The license may not be sold, rented, transferred,
+shared, assigned, sublicensed, or given to another business or
+third party without written approval from Jawad Deeb.
+
+
+5. CUSTOM COMMERCIAL TERMS
+---------------------------
+CedarISP may be sold or provided under a custom agreement with
+each client. Fees, renewal periods, subscription periods,
+payment schedules, included support, updates, and special
+conditions may be agreed separately with each client.
+
+
+6. REFUND POLICY
+----------------
+Refunds are not automatic. Refunds may be considered case by
+case at the sole discretion of Jawad Deeb.
+
+A refund may be considered if CedarISP cannot be installed or
+activated and Jawad Deeb is unable to resolve the issue after
+reasonable support attempts.
+
+No refund is guaranteed after activation, installation,
+delivery, license validation, support work, customization, or
+use of CedarISP.
+
+No refund will be provided if the client violates these Terms,
+misuses the software, attempts to bypass licensing, shares the
+software, uses a cracked version, refuses reasonable support
+steps, or changes their mind after successful activation or use.
+
+
+7. LICENSE VALIDATION
+---------------------
+CedarISP requires online license validation on login. During
+validation, CedarISP may contact a private license validation
+system controlled by the developer. License validation may
+process: login time, license name or client identifier, public
+IP address, and validation result.
+
+If the license is invalid, expired, unpaid, suspended,
+revoked, blocked, abused, or cannot be validated, CedarISP
+may deny access.
+
+The client agrees not to block, bypass, modify, disable,
+interfere with, or manipulate license validation.
+
+
+8. LICENSE SUSPENSION OR TERMINATION
+--------------------------------------
+Jawad Deeb may suspend, block, revoke, or terminate a license
+immediately and without refund if the client:
+
+  - Fails to pay agreed fees
+  - Shares the license with another business
+  - Resells or distributes CedarISP
+  - Uses a cracked, modified, or unauthorized version
+  - Attempts to bypass license validation
+  - Interferes with the license system
+  - Reverse engineers or tampers with the application
+  - Uses CedarISP illegally
+  - Abuses support or infrastructure
+  - Violates these Terms
+
+
+9. RESTRICTIONS
+---------------
+The client must NOT:
+
+  - Copy, resell, rent, lease, sublicense, distribute, or
+    publicly share CedarISP
+  - Upload the installer publicly without permission
+  - Share CedarISP with another business
+  - Reverse engineer, decompile, disassemble, or attempt to
+    extract source code
+  - Modify CedarISP without permission
+  - Bypass, disable, fake, or interfere with license validation
+  - Use cracked, pirated, patched, or unauthorized versions
+  - Remove copyright, branding, ownership, or license notices
+  - Access or attempt to access private license systems,
+    admin systems, infrastructure, or servers
+  - Use CedarISP for illegal, abusive, fraudulent, or
+    unauthorized activity
+  - Use CedarISP to send spam, unlawful messages, or
+    unauthorized communications
+
+Violation of these restrictions may result in immediate
+license termination without refund.
+
+
+10. LOCAL DATA RESPONSIBILITY
+------------------------------
+CedarISP stores most client business data locally. The client
+is fully responsible for: protecting the local database,
+backing up data, restoring data, securing the computer,
+securing exports and local backups, managing employee access,
+preventing unauthorized use, and protecting customer and
+subscriber information.
+
+Jawad Deeb is not responsible for lost, deleted, corrupted,
+stolen, leaked, damaged, or inaccessible local data.
+
+
+11. BACKUPS
+-----------
+CedarISP may create local automatic backups on startup and
+may keep approximately the last seven days of backups, stored
+on the client's computer. The client is responsible for
+verifying that backups exist, copying them to safe storage,
+protecting them, and restoring them when needed.
+
+Jawad Deeb does not guarantee that backups will always be
+available, complete, restorable, or free from corruption.
+
+
+12. UNINSTALLING AND REMAINING DATA
+-------------------------------------
+Uninstalling CedarISP may not automatically delete the local
+database, backups, exports, configuration files, logs, or
+related files. The client is responsible for manually locating
+and deleting remaining files if desired.
+
+
+13. EMPLOYEE ACCOUNTS AND PERMISSIONS
+---------------------------------------
+The client is responsible for creating employee accounts,
+assigning permissions, changing passwords, disabling accounts,
+and monitoring employee actions. Jawad Deeb is not responsible
+for employee misuse, theft, mistakes, unauthorized access,
+wrong entries, deleted records, or permission misconfiguration.
+
+
+14. FINANCIAL RECORDS DISCLAIMER
+----------------------------------
+CedarISP is a business management tool. It is not legal, tax,
+accounting, audit, or financial advice software. The client is
+responsible for verifying all invoices, payments, wallet
+balances, cash drawer balances, POS records, refunds, currency
+exchange rates, reports, taxes, and accounting records.
+
+Jawad Deeb is not responsible for wrong invoices, wrong
+balances, accounting errors, tax issues, reporting errors,
+employee theft, cash shortages, or business losses.
+
+
+15. PAYMENT HANDLING
+--------------------
+CedarISP records manual and cash payment methods entered by
+the client or employees. CedarISP does not process online card
+payments and does not intentionally store credit card numbers
+or banking credentials. The client is responsible for all
+payment collection, receipt handling, refunds, tax treatment,
+and financial reconciliation.
+
+
+16. WHATSAPP AND MESSAGING
+---------------------------
+CedarISP may prepare WhatsApp messages and redirect the client
+to WhatsApp or a related service. The client is fully
+responsible for: message content, recipient consent,
+communication laws, WhatsApp rules, customer complaints, spam
+restrictions, opt-out requests, and any account bans or
+limitations. Jawad Deeb is not responsible for WhatsApp bans,
+message delivery issues, complaints, penalties, or misuse of
+messaging features.
+
+
+17. MAPS AND LOCATION DATA
+---------------------------
+CedarISP may include map and location features for
+subscribers, stations, fiber boxes, or network planning. The
+client is responsible for ensuring all location data is
+accurate, lawful, and properly authorized. Map services depend
+on third-party providers. Jawad Deeb does not guarantee map
+accuracy, availability, completeness, or performance.
+
+
+18. SUPPORT
+-----------
+Standard support hours:
+  Monday to Friday, 10:00 AM - 4:00 PM Lebanon time
+  (excluding holidays and unavailable periods)
+
+Support may be provided by email, WhatsApp, phone, remote
+desktop, or other communication methods.
+
+Sensitive or urgent support outside normal hours may require
+additional fees. Remote support is provided only when the
+client voluntarily grants access. The client is responsible
+for supervising support access and ensuring shared data or
+systems may lawfully be accessed for support.
+
+
+19. UPDATES
+-----------
+Updates are not guaranteed unless agreed separately. Minor bug
+fixes may be provided at the discretion of Jawad Deeb. Major
+upgrades, new features, custom changes, compatibility updates,
+or future versions may require additional payment. Jawad Deeb
+may require updates for security, licensing, or compatibility,
+and may stop supporting old versions of CedarISP.
+
+
+20. THIRD-PARTY SERVICES
+-------------------------
+CedarISP may depend on or interact with third-party services
+such as hosting providers, license validation infrastructure,
+GitHub or website downloads, map providers, WhatsApp-related
+services, or remote support tools. Jawad Deeb is not
+responsible for third-party outages, policy changes,
+restrictions, downtime, pricing, data handling, errors, or
+service termination.
+
+
+21. NO WARRANTY
+---------------
+CedarISP is provided "AS IS" and "AS AVAILABLE." To the
+maximum extent allowed by law, Jawad Deeb makes no warranties
+that CedarISP will be error-free, uninterrupted, compatible
+with every computer, meet every business need, prevent data
+loss, prevent employee misuse, produce perfect financial
+records, always validate successfully, always remain
+available, or work with every third-party service.
+
+The client uses CedarISP at their own risk.
+
+
+22. LIMITATION OF LIABILITY
+----------------------------
+To the maximum extent allowed by law, Jawad Deeb will not be
+liable for: lost profits, lost revenue, lost customers, lost
+data, deleted data, corrupted database files, failed backups,
+business interruption, device failure, malware, unauthorized
+access, employee misuse, employee theft, incorrect invoices,
+incorrect payments, incorrect cash drawer balances, incorrect
+POS records, tax or accounting errors, WhatsApp bans,
+third-party service issues, license server downtime,
+installation issues caused by the client's device, or
+indirect, incidental, special, punitive, or consequential
+damages.
+
+Jawad Deeb's total liability for any claim related to
+CedarISP will not exceed the amount actually paid by the
+client for CedarISP during the last three months before the
+claim.
+
+
+23. INDEMNIFICATION
+-------------------
+The client agrees to defend, indemnify, and hold harmless
+Jawad Deeb from any claims, losses, damages, penalties, costs,
+or expenses arising from: the client's use of CedarISP, the
+client's business operations, subscriber/customer/employee/
+payment/POS/map data entered by the client, employee actions
+or misuse, violation of laws, violation of third-party rights,
+WhatsApp or messaging activity, financial or accounting
+records, unauthorized sharing or modification of CedarISP,
+attempts to bypass license validation, or use of cracked or
+unauthorized versions.
+
+
+24. PRIVACY
+-----------
+Use of CedarISP is also governed by the CedarISP Privacy
+Policy. By using CedarISP, the client agrees to the collection
+and processing of license validation data, including public IP
+address, as described in the Privacy Policy.
+
+
+25. TERMINATION
+---------------
+Jawad Deeb may terminate or suspend the client's license if
+the client violates these Terms. After termination, the client
+must stop using CedarISP. Termination does not remove the
+client's responsibility for unpaid fees, misuse, damages,
+confidentiality, restrictions, or any obligations that should
+reasonably continue after termination.
+
+
+26. DATA AFTER TERMINATION
+---------------------------
+Because CedarISP stores most data locally, the client may
+still have local files, exports, backups, or database copies
+after license termination. However, the client's right to use
+CedarISP ends when the license is terminated. The client is
+responsible for preserving any business records required by
+law before uninstalling or losing access to CedarISP.
+
+
+27. CONFIDENTIALITY
+-------------------
+The client must keep license keys, activation details, private
+support information, technical details, and any confidential
+information secure. The client must not share private license
+information, internal tools, private URLs, or confidential
+technical details with unauthorized persons. Jawad Deeb is
+not required to disclose private admin panel details,
+infrastructure details, server URLs, security systems, or
+internal license management tools.
+
+
+28. GOVERNING LAW AND JURISDICTION
+------------------------------------
+These Terms are governed by the laws of Lebanon. Any dispute
+related to CedarISP will be handled by the competent courts
+of Beirut, Lebanon, unless mandatory law requires otherwise.
+
+
+29. CHANGES TO THESE TERMS
+---------------------------
+Jawad Deeb may update these Terms from time to time. The
+updated version applies from the effective date shown or from
+the date it is made available. Continued use of CedarISP after
+changes means the client accepts the updated Terms.
+
+
+30. CONTACT
+-----------
+Jawad Deeb
+Email: Jawaddeeb08@gmail.com
+
+================================================================
+END OF TERMS OF SERVICE AND END USER LICENSE AGREEMENT
+================================================================

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   Box, Button, CircularProgress, Divider, IconButton,
-  InputAdornment, TextField, Typography,
+  InputAdornment, TextField, Tooltip, Typography,
 } from "@mui/material";
 import VisibilityIcon    from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import WhatsAppIcon      from "@mui/icons-material/WhatsApp";
+import SwapHorizIcon     from "@mui/icons-material/SwapHoriz";
 
 
 function LoginDragRegion() {
@@ -22,7 +23,7 @@ const SUPPORT_WA     = "https://wa.me/96181801312";
 
 export default function LoginPage({ onLogin }) {
   // License state
-  const [licChecking, setLicChecking] = useState(true);  // auto-checking on mount
+  const [licChecking, setLicChecking] = useState(true);
   const [licOk,       setLicOk]       = useState(false);
   const [licInfo,     setLicInfo]     = useState(null);
   const [licUser,     setLicUser]     = useState("");
@@ -83,6 +84,23 @@ export default function LoginPage({ onLogin }) {
       setLicError("Invalid license credentials.");
   };
 
+  // ── Change license: clear cache + reset to license form ─────────────────
+  const changeLicense = async () => {
+    await window.api.clearCachedLicense?.();
+    setLicOk(false);
+    setLicInfo(null);
+    setLicUser("");
+    setLicPass("");
+    setLicError("");
+    setUsername("");
+    setPassword("");
+    setError("");
+  };
+
+  // ── Open / download legal doc ─────────────────────────────────────────────
+  const openDoc     = (doc) => window.api.openLegalDoc?.(doc);
+  const downloadDoc = (doc) => window.api.downloadLegalDoc?.(doc);
+
   // ── Employee login ───────────────────────────────────────────────────────
   const submitLogin = async (e) => {
     e?.preventDefault?.();
@@ -125,7 +143,6 @@ export default function LoginPage({ onLogin }) {
       position: "fixed", top: 0, left: 0, overflow: "hidden",
     }}>
       <LoginDragRegion />
-     
 
       {/* Background texture */}
       <Box sx={{
@@ -159,7 +176,25 @@ export default function LoginPage({ onLogin }) {
         <Box sx={{
           px: 4, pt: 4, pb: 3.5, textAlign: "center",
           background: "linear-gradient(145deg, #1976d2 0%, #1565c0 100%)",
+          position: "relative",
         }}>
+          {/* Change License button — only shown after auto-validation */}
+          {licOk && (
+            <Tooltip title="Change license credentials" placement="left">
+              <IconButton
+                size="small"
+                onClick={changeLicense}
+                sx={{
+                  position: "absolute", top: 10, right: 10,
+                  color: "rgba(255,255,255,0.55)",
+                  "&:hover": { color: "white", bgcolor: "rgba(255,255,255,0.12)" },
+                }}
+              >
+                <SwapHorizIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+
           <Box sx={{
             width: 72, height: 72, borderRadius: 3, mx: "auto", mb: 2.5,
             overflow: "hidden",
@@ -253,7 +288,7 @@ export default function LoginPage({ onLogin }) {
                 {loading ? <CircularProgress size={20} color="inherit" /> : "Validate License"}
               </Button>
 
-              {/* Support always visible at bottom */}
+              {/* Support always visible at bottom of license form */}
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.75 }}>
                 <WhatsAppIcon sx={{ fontSize: 14, color: "#25D366" }} />
                 <Typography variant="caption" sx={{ color: "#25D366", fontWeight: 600 }}>
@@ -266,7 +301,6 @@ export default function LoginPage({ onLogin }) {
           {/* ── EMPLOYEE LOGIN (shown after license ok) ──────────────────── */}
           {licOk && (
             <>
-              {/* Divider only if we came from license fields (not auto-validated) */}
               <Divider sx={{ mb: 0.5 }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>SIGN IN</Typography>
               </Divider>
@@ -322,6 +356,55 @@ export default function LoginPage({ onLogin }) {
               </Button>
             </>
           )}
+
+          {/* ── Legal links — always visible at the bottom ───────────────── */}
+          <Box sx={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: 0.75, pt: 0.5,
+          }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography
+                variant="caption"
+                onClick={() => openDoc("privacy")}
+                sx={{ color: "text.disabled", cursor: "pointer", fontSize: 11,
+                  "&:hover": { color: "primary.main", textDecoration: "underline" } }}
+              >
+                Privacy Policy
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.disabled", fontSize: 10 }}>↗</Typography>
+              <Tooltip title="Download Privacy Policy PDF">
+                <Typography
+                  variant="caption"
+                  onClick={() => downloadDoc("privacy")}
+                  sx={{ color: "text.disabled", cursor: "pointer", fontSize: 10,
+                    "&:hover": { color: "primary.main" } }}
+                >
+                  ⬇
+                </Typography>
+              </Tooltip>
+              <Typography variant="caption" sx={{ color: "text.disabled", fontSize: 11 }}>·</Typography>
+              <Typography
+                variant="caption"
+                onClick={() => openDoc("terms")}
+                sx={{ color: "text.disabled", cursor: "pointer", fontSize: 11,
+                  "&:hover": { color: "primary.main", textDecoration: "underline" } }}
+              >
+                Terms of Service
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.disabled", fontSize: 10 }}>↗</Typography>
+              <Tooltip title="Download Terms of Service PDF">
+                <Typography
+                  variant="caption"
+                  onClick={() => downloadDoc("terms")}
+                  sx={{ color: "text.disabled", cursor: "pointer", fontSize: 10,
+                    "&:hover": { color: "primary.main" } }}
+                >
+                  ⬇
+                </Typography>
+              </Tooltip>
+            </Box>
+          </Box>
+
         </Box>
       </Box>
     </Box>

@@ -56,10 +56,15 @@
       "buildResources": "assets",
       "output": "dist"
     },
+    "extraResources": [
+      {
+        "from": "resources/legal",
+        "to": "legal",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
-      "target": [
-        "nsis"
-      ],
+      "target": ["nsis"],
       "executableName": "ISPManagement",
       "icon": "assets/icon.ico"
     },
@@ -70,7 +75,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico"
+      "uninstallerIcon": "assets/icon.ico",
+      "license": "resources/legal/terms_of_service.txt"
     },
     "asarUnpack": [
       "node_modules/better-sqlite3/**/*",
@@ -79,17 +85,10 @@
     "icon": "assets/icon.png"
   },
   "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "extends": ["react-app", "react-app/jest"]
   },
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
+    "production": [">0.2%", "not dead", "not op_mini all"],
     "development": [
       "last 1 chrome version",
       "last 1 firefox version",

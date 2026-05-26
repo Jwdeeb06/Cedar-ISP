@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs   = require("fs");
 
@@ -24,6 +24,60 @@ registerLicenseHandlers(ipcMain, db, app);
 // ── App controls ──────────────────────────────────────────────────────────────
 ipcMain.handle("app-restart", () => { app.relaunch(); app.exit(0); });
 ipcMain.handle("app-quit",    () => { app.quit(); });
+
+// ── Legal documents ───────────────────────────────────────────────────────────
+ipcMain.handle("open-legal-doc", async (event, doc) => {
+  const isDev   = !app.isPackaged;
+  const baseDir = isDev
+    ? path.join(__dirname, "../resources/legal")
+    : path.join(process.resourcesPath, "legal");
+
+  const fileName = doc === "privacy" ? "privacy_policy.pdf" : "terms_of_service.pdf";
+  const srcPath  = path.join(baseDir, fileName);
+
+  // Copy to a temp file so the OS viewer opens it cleanly
+  const tmpPath = path.join(app.getPath("temp"), fileName);
+  fs.copyFileSync(srcPath, tmpPath);
+  await shell.openPath(tmpPath);
+  return { ok: true };
+});
+
+// ── Download legal document (Save As dialog) ──────────────────────────────────
+ipcMain.handle("download-legal-doc", async (event, doc) => {
+  const { dialog } = require("electron");
+  const isDev   = !app.isPackaged;
+  const baseDir = isDev
+    ? path.join(__dirname, "../resources/legal")
+    : path.join(process.resourcesPath, "legal");
+
+  const fileName    = doc === "privacy" ? "privacy_policy.pdf" : "terms_of_service.pdf";
+  const defaultName = doc === "privacy"
+    ? "CedarISP_Privacy_Policy.pdf"
+    : "CedarISP_Terms_of_Service_EULA.pdf";
+
+  const srcPath = path.join(baseDir, fileName);
+
+  const { filePath, canceled } = await dialog.showSaveDialog({
+    title:       "Save Document",
+    defaultPath: defaultName,
+    filters:     [{ name: "PDF Document", extensions: ["pdf"] }],
+  });
+
+  if (canceled || !filePath) return { ok: false, reason: "CANCELLED" };
+  fs.copyFileSync(srcPath, filePath);
+  return { ok: true, filePath };
+});
+
+// ── Clear cached license ──────────────────────────────────────────────────────
+ipcMain.handle("clear-cached-license", async () => {
+  try {
+    const cacheFile = path.join(app.getPath("userData"), "license.json");
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
 
 // ── List auto-backups ─────────────────────────────────────────────────────────
 ipcMain.handle("list-backups", () => {
@@ -160,7 +214,6 @@ ipcMain.handle("print-html", async (event, { html, title }) => {
     fs.unlinkSync(htmlFile);
     fs.writeFileSync(pdfFile, pdfData);
 
-    const { shell } = require("electron");
     await shell.openPath(pdfFile);
     setTimeout(() => { try { fs.unlinkSync(pdfFile); } catch {} }, 60000);
 
@@ -197,20 +250,13 @@ function createWindow() {
     minWidth: 900,
     minHeight:600,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
-
-    // FIX 4: removed titleBarOverlay — only works with titleBarStyle "hidden",
-    // not with "default". Using OS default window frame throughout.
     titleBarStyle: "default",
-
     webPreferences: {
       preload:          preloadPath,
       contextIsolation: true,
       nodeIntegration:  false,
     },
   });
-
-  // FIX 3: window control handlers removed — using OS default window frame.
-  // preload.js no longer exposes winMinimize/winMaximize/winClose either.
 
   // ── DevTools toggle ─────────────────────────────────────────────────────
   ipcMain.handle("toggle-devtools", () => {
@@ -249,10 +295,7 @@ function createWindow() {
 // ── App ready ─────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
 
-  // FIX 2: single SQL UPDATE replaces N+1 startup queries
-  // Sets SUSPENDED for blocked users, ACTIVE for those with a paid invoice
-  // this month, INACTIVE for everyone else — all in 2 queries.
-  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const currentMonth = new Date().toISOString().slice(0, 7);
 
   db.run(`UPDATE users SET status = 'SUSPENDED' WHERE blocked = 1 AND COALESCE(is_deleted,0)=0`);
 
@@ -274,7 +317,7 @@ app.whenReady().then(() => {
     else console.log("User statuses recalculated on startup");
   });
 
-  // FIX 1: daily backup now runs inside app.whenReady() — safe to call app.getPath()
+  // Daily auto-backup
   try {
     const dataDir   = app.getPath("userData");
     const dbPath    = path.join(dataDir, "isp.db");

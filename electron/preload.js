@@ -15,6 +15,13 @@ contextBridge.exposeInMainWorld("api", {
   // ── LICENSE ──────────────────────────────────────────────────────────────────
   checkLicense: (p) => ipcRenderer.invoke("check-license", p),
   getCachedLicense: () => ipcRenderer.invoke("get-cached-license"),
+  autoCheckLicense: () => ipcRenderer.invoke("auto-check-license"),
+  clearCachedLicense: () => ipcRenderer.invoke("clear-cached-license"),
+
+  // ── LEGAL DOCS ───────────────────────────────────────────────────────────────
+  openLegalDoc:     (doc) => ipcRenderer.invoke("open-legal-doc", doc),
+  downloadLegalDoc: (doc) => ipcRenderer.invoke("download-legal-doc", doc),
+  // doc: "privacy" | "terms"
 
   // ── ACTOR (for activity log) ──────────────────────────────────────────────
   setActor: (username) => {
@@ -29,7 +36,6 @@ contextBridge.exposeInMainWorld("api", {
   updateEmployee: (p) => ipcRenderer.invoke("update-employee", p),
   changePassword: (p) => ipcRenderer.invoke("change-password", p),
   deleteEmployee: (id) => ipcRenderer.invoke("delete-employee", id),
-  autoCheckLicense: () => ipcRenderer.invoke("auto-check-license"),
 
   // ── USERS ─────────────────────────────────────────────────────────────────
   addUser: (user) => ipcRenderer.invoke("add-user", { ...user, actor: _actor }),
@@ -62,7 +68,7 @@ contextBridge.exposeInMainWorld("api", {
   listUserInvoices: (userId) =>
     ipcRenderer.invoke("list-user-invoices", userId),
   getInvoice: (id) => ipcRenderer.invoke("get-invoice", id),
-  getInvoiceDetail: (id) => ipcRenderer.invoke("get-invoice-detail", id), // includes paid_sum + remaining
+  getInvoiceDetail: (id) => ipcRenderer.invoke("get-invoice-detail", id),
   setInvoiceStatus: (payload) =>
     ipcRenderer.invoke("set-invoice-status", payload),
   deleteInvoice: (id) => ipcRenderer.invoke("delete-invoice", id),
@@ -73,14 +79,11 @@ contextBridge.exposeInMainWorld("api", {
   listPaidDays: (payload) => ipcRenderer.invoke("list-paid-days", payload),
 
   // ── PAYMENTS ──────────────────────────────────────────────────────────────
-  // Full/partial payment — USD and/or LBP
   payInvoice: (payload) =>
     ipcRenderer.invoke("pay-invoice", { ...payload, actor: _actor }),
   listInvoicePayments: (id) => ipcRenderer.invoke("list-invoice-payments", id),
   listPayments: (filters) => ipcRenderer.invoke("list-payments", filters),
   deletePayment: (payload) => ipcRenderer.invoke("delete-payment", payload),
-
-  // Subscription / balance shortcuts (existing)
   applySubscriptionPayment: (payload) =>
     ipcRenderer.invoke("apply-subscription-payment", payload),
   adjustBalance: (payload) => ipcRenderer.invoke("adjust-balance", payload),
@@ -125,7 +128,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("list-activity-log", filters),
   listActivityDays: (payload) =>
     ipcRenderer.invoke("list-activity-days", payload),
-listActivityActors: () => ipcRenderer.invoke("list-activity-actors"),
+  listActivityActors: () => ipcRenderer.invoke("list-activity-actors"),
+
   // ── DRAWER MIGRATION ─────────────────────────────────────────────────────
   migrateDrawerCompanies: () => ipcRenderer.invoke("migrate-drawer-companies"),
 
