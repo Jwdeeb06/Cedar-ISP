@@ -162,8 +162,10 @@ WHERE id = ? AND COALESCE(is_deleted,0)=0`,
   });
 }
 
-// Helper: insert a drawer OUT tagged with the invoice's company_id
-function drawerOut(db, { invoiceId, amount, reason = "REFUND", actor = "system", note = null }) {
+// ── drawerOut — now stores amount_usd and amount_lbp ─────────────────────────
+// amount_usd / amount_lbp come from the RefundDialog (user-specified)
+// or fall back to the stored payment split if not provided.
+function drawerOut(db, { invoiceId, amount, amount_usd = 0, amount_lbp = 0, reason = "REFUND", actor = "system", note = null }) {
   db.get(
     `SELECT COALESCE(s.company_id, u.company_id) AS company_id
      FROM invoices i
@@ -174,9 +176,9 @@ function drawerOut(db, { invoiceId, amount, reason = "REFUND", actor = "system",
     (err, row) => {
       const company_id = err ? null : (row?.company_id || null);
       db.run(
-        `INSERT INTO drawer_transactions (type, amount, reason, ref_type, ref_id, actor, note, company_id)
-         VALUES ('OUT', ?, ?, 'invoice', ?, ?, ?, ?)`,
-        [amount, reason, invoiceId, actor, note || null, company_id],
+        `INSERT INTO drawer_transactions (type, amount, amount_usd, amount_lbp, reason, ref_type, ref_id, actor, note, company_id)
+         VALUES ('OUT', ?, ?, ?, ?, 'invoice', ?, ?, ?, ?)`,
+        [amount, amount_usd, amount_lbp, reason, invoiceId, actor, note || null, company_id],
         () => {}
       );
     }
@@ -276,42 +278,34 @@ function registerInvoiceHandlers(ipcMain, db) {
     `;
       const params = [];
 
-      // ✅ soft delete filters
       sql += ` AND COALESCE(invoices.is_deleted, 0) = 0`;
       sql += ` AND COALESCE(users.is_deleted, 0) = 0`;
 
-      // ✅ single user filter
       if (userId && Number.isFinite(userId)) {
         sql += ` AND invoices.user_id = ?`;
         params.push(userId);
       }
 
-      // month
       if (month) {
         sql += ` AND invoices.month = ?`;
         params.push(month);
       }
 
-      // status
       if (status !== "ALL") {
         sql += ` AND invoices.status = ?`;
         params.push(status);
       }
 
-      // ✅ type (affects_expiry)
       if (type !== "ALL") {
         sql += ` AND COALESCE(invoices.affects_expiry, 1) = ?`;
         params.push(type === "STATIC" ? 0 : 1);
       }
 
-      // ✅ paidOn exact date (forces PAID)
-      // Works because paid_date is ISO datetime, and SQLite date() extracts date part.
       if (paidOn) {
         sql += ` AND invoices.status = 'PAID' AND date(invoices.paid_at) = date(?)`;
         params.push(paidOn);
       }
 
-      // ✅ user field filters
       if (service) {
         sql += ` AND services.name LIKE ?`;
         params.push(`%${service}%`);
@@ -327,7 +321,6 @@ function registerInvoiceHandlers(ipcMain, db) {
         params.push(`%${region}%`);
       }
 
-      // search (keep yours)
       if (search) {
         sql += ` AND (
         users.name LIKE ? OR
@@ -350,8 +343,9 @@ function registerInvoiceHandlers(ipcMain, db) {
       });
     });
   });
+
   ipcMain.handle("list-paid-days", async (event, payload) => {
-    const month = payload?.month || null; // YYYY-MM or null
+    const month = payload?.month || null;
 
     return new Promise((resolve, reject) => {
       let sql = `
@@ -374,7 +368,7 @@ function registerInvoiceHandlers(ipcMain, db) {
 
       db.all(sql, params, (err, rows) => {
         if (err) reject(err);
-        else resolve(rows || []); // [{day:'2026-02-01', count:5}, ...]
+        else resolve(rows || []);
       });
     });
   });
@@ -409,7 +403,6 @@ function registerInvoiceHandlers(ipcMain, db) {
   // --------------------------
   // delete-invoice (SOFT DELETE)
   ipcMain.handle("delete-invoice", async (event, payload) => {
-    // support both delete-invoice(id) and delete-invoice({ id, actor, reason })
     const invoiceId =
       typeof payload === "object" && payload !== null
         ? Number(payload.id)
@@ -423,7 +416,6 @@ function registerInvoiceHandlers(ipcMain, db) {
 
     if (!Number.isFinite(invoiceId)) return { ok: false, reason: "INVALID" };
 
-    // get invoice + user info (ignore already-deleted invoices)
     const inv = await new Promise((resolve, reject) => {
       db.get(
         `
@@ -454,13 +446,17 @@ function registerInvoiceHandlers(ipcMain, db) {
       return d.toISOString().slice(0, 10);
     };
 
-    // Get paid sum before deleting
-    const paidSum = await new Promise((resolve) => {
+    // Get paid sum + USD/LBP split before deleting
+    const paidSums = await new Promise((resolve) => {
       db.get(
-        `SELECT COALESCE(SUM(amount),0) AS s FROM payments
+        `SELECT
+           COALESCE(SUM(amount), 0)                          AS s,
+           COALESCE(SUM(COALESCE(amount_usd, amount)), 0)   AS usd,
+           COALESCE(SUM(COALESCE(amount_lbp, 0)), 0)        AS lbp
+         FROM payments
          WHERE invoice_id=? AND COALESCE(is_deleted,0)=0`,
         [invoiceId],
-        (err, row) => resolve(err ? 0 : Number(row?.s || 0))
+        (err, row) => resolve(err ? { s:0, usd:0, lbp:0 } : { s: Number(row?.s||0), usd: Number(row?.usd||0), lbp: Number(row?.lbp||0) })
       );
     });
 
@@ -468,7 +464,6 @@ function registerInvoiceHandlers(ipcMain, db) {
       db.serialize(async () => {
         db.run("BEGIN TRANSACTION");
 
-        // Soft-delete payments linked to this invoice
         db.run(
           `UPDATE payments SET is_deleted=1, deleted_at=?, deleted_by=?, delete_reason=?
            WHERE invoice_id=? AND COALESCE(is_deleted,0)=0`,
@@ -476,7 +471,6 @@ function registerInvoiceHandlers(ipcMain, db) {
           (err1) => {
             if (err1) { db.run("ROLLBACK"); return reject(err1); }
 
-            // Soft-delete invoice itself
             db.run(
               `UPDATE invoices SET is_deleted=1, deleted_at=?, deleted_by=?, delete_reason=?
                WHERE id=? AND COALESCE(is_deleted,0)=0`,
@@ -485,7 +479,6 @@ function registerInvoiceHandlers(ipcMain, db) {
                 if (err2) { db.run("ROLLBACK"); return reject(err2); }
 
                 try {
-                  // Revert expiry if PAID subscription invoice
                   if (inv.status === "PAID" && Number(inv.affects_expiry) === 1 && Number(inv.blocked) === 0) {
                     const newExpiry = shiftMonth(inv.expiry_date, -1);
                     await new Promise((res, rej) => {
@@ -502,22 +495,23 @@ function registerInvoiceHandlers(ipcMain, db) {
                   db.run("COMMIT", (errC) => {
                     if (errC) return reject(errC);
 
-                    // Drawer OUT for paid amount (fire-and-forget after commit)
-                    if (paidSum > 0) {
+                    if (paidSums.s > 0) {
                       drawerOut(db, {
                         invoiceId,
-                        amount: paidSum,
+                        amount:     paidSums.s,
+                        amount_usd: paidSums.usd,
+                        amount_lbp: paidSums.lbp,
                         reason: "INVOICE_DELETED",
                         actor:  actor || "system",
-                        note:   `Invoice deleted — was ${inv.status} $${paidSum.toFixed(2)}`,
+                        note:   `Invoice deleted — was ${inv.status} $${paidSums.s.toFixed(2)}`,
                       });
                     }
 
                     logAction(db, { actor: actor || "system", action:"DELETE_INVOICE",
                       entity:"invoices", entity_id:invoiceId,
-                      message:`Invoice archived — was ${inv.status}, paid $${paidSum}` });
+                      message:`Invoice archived — was ${inv.status}, paid $${paidSums.s}` });
 
-                    resolve({ ok:true, deleted:this.changes, was_status:inv.status, paid_sum:paidSum });
+                    resolve({ ok:true, deleted:this.changes, was_status:inv.status, paid_sum:paidSums.s });
                   });
                 } catch(e) {
                   db.run("ROLLBACK", () => {});
@@ -532,9 +526,13 @@ function registerInvoiceHandlers(ipcMain, db) {
   });
 
   // --------------------------
-  // set-invoice-status (with affects_expiry)
+  // set-invoice-status
+  // payload: { id, status, refund_usd?, refund_lbp?, lbp_rate? }
+  // refund_usd/refund_lbp come from RefundDialog when marking UNPAID
   ipcMain.handle("set-invoice-status", async (event, payload) => {
     const { id, status } = payload;
+    const refundUsd = Number(payload?.refund_usd || 0);
+    const refundLbp = Number(payload?.refund_lbp || 0);
     const nowIso = new Date().toISOString();
 
     const inv = await new Promise((resolve, reject) => {
@@ -590,13 +588,15 @@ WHERE id = ? AND COALESCE(is_deleted,0)=0`,
     // static invoices don't change expiry but still need payment cleanup
     if (Number(inv.affects_expiry) === 0) {
       if (status === "UNPAID" && inv.old_status === "PAID") {
-        // soft-delete payments
-        const paidSum = await new Promise((resolve) => {
+        // Get stored payment split before deleting
+        const paidSums = await new Promise((resolve) => {
           db.get(
-            `SELECT COALESCE(SUM(amount), 0) AS s FROM payments
-             WHERE invoice_id = ? AND COALESCE(is_deleted, 0) = 0`,
+            `SELECT COALESCE(SUM(amount), 0) AS s,
+                    COALESCE(SUM(COALESCE(amount_usd, amount)), 0) AS usd,
+                    COALESCE(SUM(COALESCE(amount_lbp, 0)), 0) AS lbp
+             FROM payments WHERE invoice_id = ? AND COALESCE(is_deleted, 0) = 0`,
             [id],
-            (err, row) => resolve(err ? 0 : Number(row?.s || 0))
+            (err, row) => resolve(err ? {s:0,usd:0,lbp:0} : { s:Number(row?.s||0), usd:Number(row?.usd||0), lbp:Number(row?.lbp||0) })
           );
         });
         await new Promise((resolve, reject) => {
@@ -608,13 +608,16 @@ WHERE id = ? AND COALESCE(is_deleted,0)=0`,
             (err) => (err ? reject(err) : resolve())
           );
         });
-        if (paidSum > 0) {
-          db.run(
-            `INSERT INTO drawer_transactions (type, amount, reason, ref_type, ref_id, actor, note)
-             VALUES ('OUT', ?, 'REFUND', 'invoice', ?, 'system', ?)`,
-            [paidSum, id, `Static invoice unpaid: refund $${paidSum.toFixed(2)}`],
-            () => {}
-          );
+        if (paidSums.s > 0) {
+          drawerOut(db, {
+            invoiceId: id,
+            amount:     paidSums.s,
+            amount_usd: refundUsd > 0 ? refundUsd : paidSums.usd,
+            amount_lbp: refundLbp > 0 ? refundLbp : paidSums.lbp,
+            reason: "REFUND",
+            actor:  "system",
+            note:   `Static invoice unpaid: refund $${paidSums.s.toFixed(2)}`,
+          });
         }
       }
       await recalcUserStatus(db, inv.user_id);
@@ -632,8 +635,7 @@ WHERE id = ? AND COALESCE(is_deleted,0)=0`,
         const newExpiry = shiftMonth(inv.expiry_date, +1);
         await new Promise((resolve, reject) => {
           db.run(
-            `UPDATE users SET expiry_date = ? WHERE id = ? AND COALESCE(is_deleted,0)=0
-`,
+            `UPDATE users SET expiry_date = ? WHERE id = ? AND COALESCE(is_deleted,0)=0`,
             [newExpiry, inv.user_id],
             (err) => (err ? reject(err) : resolve()),
           );
@@ -650,17 +652,19 @@ WHERE id = ? AND COALESCE(is_deleted,0)=0`,
           );
         });
 
-        // ── Get paid sum BEFORE soft-deleting payments ──
-        const paidSum = await new Promise((resolve) => {
+        // Get stored payment USD/LBP split BEFORE soft-deleting
+        const paidSums = await new Promise((resolve) => {
           db.get(
-            `SELECT COALESCE(SUM(amount), 0) AS s FROM payments
-             WHERE invoice_id = ? AND COALESCE(is_deleted, 0) = 0`,
+            `SELECT COALESCE(SUM(amount), 0) AS s,
+                    COALESCE(SUM(COALESCE(amount_usd, amount)), 0) AS usd,
+                    COALESCE(SUM(COALESCE(amount_lbp, 0)), 0) AS lbp
+             FROM payments WHERE invoice_id = ? AND COALESCE(is_deleted, 0) = 0`,
             [id],
-            (err, row) => resolve(err ? 0 : Number(row?.s || 0))
+            (err, row) => resolve(err ? {s:0,usd:0,lbp:0} : { s:Number(row?.s||0), usd:Number(row?.usd||0), lbp:Number(row?.lbp||0) })
           );
         });
 
-        // ── Soft-delete all payment rows for this invoice ──
+        // Soft-delete all payment rows for this invoice
         await new Promise((resolve, reject) => {
           db.run(
             `UPDATE payments
@@ -671,14 +675,17 @@ WHERE id = ? AND COALESCE(is_deleted,0)=0`,
           );
         });
 
-        // ── Drawer OUT: withdraw the total paid amount ──
-        if (paidSum > 0) {
-          db.run(
-            `INSERT INTO drawer_transactions (type, amount, reason, ref_type, ref_id, actor, note)
-             VALUES ('OUT', ?, 'REFUND', 'invoice', ?, 'system', ?)`,
-            [paidSum, id, `Invoice unpaid: refund $${paidSum.toFixed(2)}`],
-            () => {}
-          );
+        // Drawer OUT — use RefundDialog amounts if provided, else fall back to stored split
+        if (paidSums.s > 0) {
+          drawerOut(db, {
+            invoiceId:  id,
+            amount:     paidSums.s,
+            amount_usd: refundUsd > 0 ? refundUsd : paidSums.usd,
+            amount_lbp: refundLbp > 0 ? refundLbp : paidSums.lbp,
+            reason:     "REFUND",
+            actor:      "system",
+            note:       `Invoice unpaid: refund $${paidSums.s.toFixed(2)}`,
+          });
         }
       }
     }
@@ -712,7 +719,6 @@ WHERE id = ? AND COALESCE(is_deleted,0)=0`,
       db.serialize(() => {
         db.run("BEGIN TRANSACTION");
 
-        // Compute last day of target month so <= catches overdue users too
         const [yStr, mStr] = month.split("-");
         const lastDay = new Date(Number(yStr), Number(mStr), 0);
         const monthEnd =
@@ -821,7 +827,6 @@ resolve({ ok: true, inserted, autoPaid, month });
                         return reject(err4);
                       }
 
-                      // Record wallet DEBIT so wallet history stays in sync
                       db.run(
                         `INSERT INTO wallet_transactions (user_id, type, amount, ref_type, ref_id, note)
                          VALUES (?, 'DEBIT', ?, 'invoice', ?, ?)`,
@@ -888,7 +893,7 @@ resolve({ ok: true, inserted, autoPaid, month });
   });
 
   // --------------------------
-  // apply-subscription-payment (creates/marks invoices paid + extends expiry + optional balance)
+  // apply-subscription-payment
   ipcMain.handle("apply-subscription-payment", async (event, payload) => {
     const userId = payload?.user_id;
     const months = Math.max(1, Number(payload?.months || 1));
@@ -989,7 +994,7 @@ resolve({ ok: true, inserted, autoPaid, month });
   });
 
   // --------------------------
-  // ✅ NEW: create-static-payment (PAID invoice, affects_expiry=0, logs to payments)
+  // create-static-payment
   ipcMain.handle("create-static-payment", async (event, payload) => {
     const userId = Number(payload?.user_id);
     const amount = Number(payload?.amount);
@@ -1059,6 +1064,7 @@ return { ok: true, invoice_id: invoiceId };
       return { ok: false, reason: "FAILED", error: String(e?.message || e) };
     }
   });
+
   ipcMain.handle("get-user-month-payments", async (event, payload) => {
     const userId = Number(payload?.user_id);
     const month = payload?.month;
@@ -1098,10 +1104,10 @@ return { ok: true, invoice_id: invoiceId };
     });
   });
 
-  // -------- LIST PAYMENTS (soft-delete safe) --------
+  // -------- LIST PAYMENTS --------
 ipcMain.handle("list-payments", async (event, filters) => {
   const userId = Number(filters?.user_id || 0);
-  const month = (filters?.month || "").trim(); // optional YYYY-MM
+  const month = (filters?.month || "").trim();
 
   return new Promise((resolve, reject) => {
     let sql = `
@@ -1125,7 +1131,6 @@ ipcMain.handle("list-payments", async (event, filters) => {
     }
 
     if (month && /^\d{4}-\d{2}$/.test(month)) {
-      // month based on invoice month (best), fallback: paid_at month
       sql += ` AND (i.month = ? OR strftime('%Y-%m', p.paid_at) = ?)`;
       params.push(month, month);
     }
@@ -1139,9 +1144,8 @@ ipcMain.handle("list-payments", async (event, filters) => {
   });
 });
 
-// -------- DELETE PAYMENT (SOFT DELETE) --------
+// -------- DELETE PAYMENT --------
 ipcMain.handle("delete-payment", async (event, payload) => {
-  // supports delete-payment(id) and delete-payment({ id, actor, reason })
   const paymentId =
     typeof payload === "object" && payload !== null ? Number(payload.id) : Number(payload);
 

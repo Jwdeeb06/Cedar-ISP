@@ -55,6 +55,7 @@ function registerUserHandlers(ipcMain, db) {
 
           computeStatus({ blocked: user.blocked ? 1 : 0, expiry_date: user.expiry_date ?? null }),
           user.role ?? "USER",
+          user.company_id ?? null,
         ],
 function (err) {
   if (err) return reject(err);

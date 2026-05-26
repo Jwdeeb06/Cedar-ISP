@@ -1,3 +1,4 @@
+// src/pages/Pos/PosDrawerPage.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box, Button, Chip, Divider, FormControl, IconButton, InputLabel,
@@ -15,6 +16,9 @@ const ll  = (n) => `L.L${(Number(n) || 0).toLocaleString(undefined, { maximumFra
 
 const REASON_OPTIONS = ["EXPENSE","SALARY","RENT","EQUIPMENT","PETTY_CASH","TRANSFER","REFUND","SUPPLIER","OTHER"];
 
+const TODAY = dayjs().format("YYYY-MM-DD");
+
+// ── Summary strip ─────────────────────────────────────────────────────────────
 function SummaryStrip({ summary, label }) {
   const { total_in_usd=0, total_out_usd=0, balance_usd=0,
           total_in_lbp=0, total_out_lbp=0, balance_lbp=0, tx_count=0 } = summary;
@@ -62,21 +66,37 @@ function SummaryStrip({ summary, label }) {
   );
 }
 
+// ── Daily breakdown — collapsible table, same as ISP drawer ──────────────────
 function DailyTable({ rows, selectedDay, onSelectDay }) {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   if (!rows.length) return null;
+
+  const PREVIEW = 5;
+  const visible = expanded ? rows : rows.slice(0, PREVIEW);
+  const hasMore = rows.length > PREVIEW;
+
   return (
     <Paper elevation={0} sx={{ mb: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200", overflow: "hidden" }}>
       <Box onClick={() => setOpen(o => !o)} sx={{
         px: 2, py: 1.5, bgcolor: "grey.50",
         borderBottom: open ? "1px solid" : "none", borderColor: "grey.200",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        cursor: "pointer", "&:hover": { bgcolor: "grey.100" },
+        cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: "grey.100" },
       }}>
-        <Typography variant="caption" fontWeight={800} sx={{ opacity: 0.65, textTransform: "uppercase", letterSpacing: 1 }}>
+        <Typography variant="caption" fontWeight={800}
+          sx={{ opacity: 0.65, textTransform: "uppercase", letterSpacing: 1 }}>
           Daily Breakdown — {rows.length} days
         </Typography>
-        <Typography sx={{ fontSize: 16, opacity: 0.5 }}>{open ? "▲" : "▼"}</Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {open && hasMore && (
+            <Button size="small" onClick={e => { e.stopPropagation(); setExpanded(x => !x); }}
+              sx={{ fontSize: 11, fontWeight: 700, py: 0.25, minWidth: 0 }}>
+              {expanded ? "Less ▲" : `All ${rows.length} ▼`}
+            </Button>
+          )}
+          <Typography sx={{ fontSize: 16, opacity: 0.5, lineHeight: 1 }}>{open ? "▲" : "▼"}</Typography>
+        </Box>
       </Box>
       {open && (
         <Table size="small">
@@ -92,7 +112,7 @@ function DailyTable({ rows, selectedDay, onSelectDay }) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map(d => {
+            {visible.map(d => {
               const netUsd = Number(d.total_in_usd) - Number(d.total_out_usd);
               const active = selectedDay === d.day;
               return (
@@ -100,21 +120,24 @@ function DailyTable({ rows, selectedDay, onSelectDay }) {
                   sx={{ cursor: "pointer",
                     bgcolor: active ? (netUsd >= 0 ? "rgba(46,125,50,0.08)" : "rgba(211,47,47,0.08)") : "inherit",
                     "&:last-child td": { border: 0 } }}>
-                  <TableCell sx={{ fontWeight: active ? 900 : 600, fontFamily: "monospace", fontSize: 12 }}>{d.day}</TableCell>
+                  <TableCell sx={{ fontWeight: active ? 900 : 600, fontFamily: "monospace", fontSize: 12 }}>
+                    {d.day}{d.day === TODAY ? " (Today)" : ""}
+                  </TableCell>
                   <TableCell align="right" sx={{ color: "success.dark", fontWeight: 700, fontSize: 12 }}>
-                    {d.total_in_usd > 0 ? `+$${usd(d.total_in_usd)}` : "—"}
+                    {Number(d.total_in_usd) > 0 ? `+$${usd(d.total_in_usd)}` : "—"}
                   </TableCell>
                   <TableCell align="right" sx={{ color: "error.main", fontWeight: 700, fontSize: 12 }}>
-                    {d.total_out_usd > 0 ? `−$${usd(d.total_out_usd)}` : "—"}
+                    {Number(d.total_out_usd) > 0 ? `−$${usd(d.total_out_usd)}` : "—"}
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 900, fontSize: 13, color: netUsd >= 0 ? "success.dark" : "error.dark" }}>
+                  <TableCell align="right" sx={{ fontWeight: 900, fontSize: 13,
+                    color: netUsd >= 0 ? "success.dark" : "error.dark" }}>
                     {netUsd >= 0 ? "+" : ""}${usd(netUsd)}
                   </TableCell>
                   <TableCell align="right" sx={{ color: "info.dark", fontWeight: 700, fontSize: 12 }}>
-                    {d.total_in_lbp > 0 ? `+${ll(d.total_in_lbp)}` : "—"}
+                    {Number(d.total_in_lbp) > 0 ? `+${ll(d.total_in_lbp)}` : "—"}
                   </TableCell>
                   <TableCell align="right" sx={{ color: "error.light", fontWeight: 700, fontSize: 12 }}>
-                    {d.total_out_lbp > 0 ? `−${ll(d.total_out_lbp)}` : "—"}
+                    {Number(d.total_out_lbp) > 0 ? `−${ll(d.total_out_lbp)}` : "—"}
                   </TableCell>
                   <TableCell align="right" sx={{ opacity: 0.55, fontSize: 12 }}>{d.tx_count}</TableCell>
                 </TableRow>
@@ -129,7 +152,7 @@ function DailyTable({ rows, selectedDay, onSelectDay }) {
 
 export default function PosDrawerPage() {
   const [viewMonth,   setViewMonth]   = useState(dayjs());
-  const [selectedDay, setSelectedDay] = useState("");
+  const [selectedDay, setSelectedDay] = useState(TODAY); // default today
   const [filterType,  setFilterType]  = useState("");
   const [rows,        setRows]        = useState([]);
   const [summary,     setSummary]     = useState({
@@ -150,7 +173,9 @@ export default function PosDrawerPage() {
   const monthStr = viewMonth ? viewMonth.format("YYYY-MM") : "";
 
   const loadAll = useCallback(async () => {
-    const rowFilters = selectedDay ? { day: selectedDay, type: filterType } : { month: monthStr, type: filterType };
+    const rowFilters = selectedDay
+      ? { day: selectedDay, type: filterType || undefined }
+      : { month: monthStr, type: filterType || undefined };
     const sumFilters = selectedDay ? { day: selectedDay } : { month: monthStr };
 
     const [txRows, sumData, daily, bal] = await Promise.all([
@@ -191,7 +216,11 @@ export default function PosDrawerPage() {
   };
 
   const periodLabel = useMemo(() =>
-    selectedDay ? `Day: ${selectedDay}` : `Month: ${monthStr}`, [selectedDay, monthStr]);
+    selectedDay
+      ? `Day: ${selectedDay}${selectedDay === TODAY ? " (Today)" : ""}`
+      : `Month: ${monthStr}`,
+    [selectedDay, monthStr]
+  );
 
   return (
     <Box>
@@ -214,6 +243,10 @@ export default function PosDrawerPage() {
               onChange={v => { if (v) { setViewMonth(v); setSelectedDay(""); } }}
               slotProps={{ textField: { size: "small", sx: { width: 180 } } }} />
           </LocalizationProvider>
+          {selectedDay !== TODAY && (
+            <Button size="small" variant="outlined" onClick={() => setSelectedDay(TODAY)}
+              sx={{ fontWeight: 700, height: 40 }}>Today</Button>
+          )}
         </Box>
       </Paper>
 
@@ -279,9 +312,18 @@ export default function PosDrawerPage() {
               <MenuItem value="OUT">Cash Out</MenuItem>
             </Select>
           </FormControl>
+          {selectedDay !== TODAY && (
+            <Button size="small" variant="outlined" color="success"
+              onClick={() => setSelectedDay(TODAY)} sx={{ fontWeight: 700, height: 36 }}>
+              Back to Today
+            </Button>
+          )}
           {selectedDay && (
-            <Chip label={`Day: ${selectedDay}`} onDelete={() => setSelectedDay("")}
-              color="primary" size="small" sx={{ fontWeight: 700 }} />
+            <Chip
+              label={selectedDay === TODAY ? "Today" : `Day: ${selectedDay}`}
+              onDelete={() => setSelectedDay("")}
+              color={selectedDay === TODAY ? "success" : "primary"}
+              size="small" sx={{ fontWeight: 700 }} />
           )}
         </Box>
 
@@ -302,7 +344,7 @@ export default function PosDrawerPage() {
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} sx={{ textAlign: "center", py: 4, opacity: 0.5 }}>
-                  No transactions for this period.
+                  No transactions for today.
                 </TableCell>
               </TableRow>
             ) : rows.map((r, idx) => (
@@ -318,9 +360,9 @@ export default function PosDrawerPage() {
                     sx={{ fontWeight: 800, minWidth: 52 }} />
                 </TableCell>
                 <TableCell sx={{ fontSize: 12 }}>
-                  {r.reason === "SALE" ? (
-                    <Chip label="SALE" size="small" color="primary" sx={{ fontWeight: 700, fontSize: 11 }} />
-                  ) : r.reason || "—"}
+                  {r.reason === "SALE"
+                    ? <Chip label="SALE" size="small" color="primary" sx={{ fontWeight: 700, fontSize: 11 }} />
+                    : r.reason || "—"}
                 </TableCell>
                 <TableCell sx={{ fontSize: 12, opacity: 0.75, maxWidth: 220 }}>{r.note || "—"}</TableCell>
                 <TableCell>

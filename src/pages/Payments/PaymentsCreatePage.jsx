@@ -15,6 +15,7 @@ import AddIcon            from "@mui/icons-material/Add";
 import DeleteOutlineIcon  from "@mui/icons-material/DeleteOutline";
 import ReceiptIcon        from "@mui/icons-material/Receipt";
 import PayDialog          from "../../components/payments/PayDialog";
+import RefundDialog       from "../../components/payments/RefundDialog";
 import PrintInvoiceButton from "../../components/payments/PrintInvoiceButton";
 import ConfirmDialog      from "../../components/ConfirmDialog";
 import { usersApi }       from "../../services/usersApi";
@@ -43,8 +44,11 @@ export default function PaymentsCreatePage() {
   // pay dialog
   const [payInvoice, setPayInvoice] = useState(null);
 
-  // unpay confirm
-  const [confirm, setConfirm] = useState({ open: false, invoiceId: null, invoiceNum: "", action: "unpay" });
+  // refund dialog (replaces old unpay confirm)
+  const [refundInvoice, setRefundInvoice] = useState(null);
+
+  // delete confirm (kept for delete action only)
+  const [confirm, setConfirm] = useState({ open: false, invoiceId: null, invoiceNum: "", action: "delete" });
 
   useEffect(() => {
     window.api.getSettings().then(s => {
@@ -78,8 +82,23 @@ export default function PaymentsCreatePage() {
     else setMsg({ text: "Could not load invoice detail.", ok: false });
   };
 
-  const doUnpay = async (invoiceId) => {
-    const res = await window.api.setInvoiceStatus({ id: invoiceId, status: "UNPAID" });
+  // Opens refund dialog with full invoice detail (includes paid_usd/paid_lbp)
+  const openUnpay = async (inv) => {
+    const detail = await window.api.getInvoiceDetail(inv.id);
+    if (detail) setRefundInvoice(detail);
+    else setMsg({ text: "Could not load invoice detail.", ok: false });
+  };
+
+  // Called by RefundDialog on confirm — receives { refund_usd, refund_lbp, lbp_rate }
+  const doUnpay = async ({ refund_usd, refund_lbp, lbp_rate }) => {
+    const res = await window.api.setInvoiceStatus({
+      id: refundInvoice.id,
+      status: "UNPAID",
+      refund_usd,
+      refund_lbp,
+      lbp_rate,
+    });
+    setRefundInvoice(null);
     if (res?.ok) { setMsg({ text: "Invoice marked as unpaid.", ok: true }); loadInvoices(selectedUser); }
     else setMsg({ text: "Failed to unpay.", ok: false });
   };
@@ -449,9 +468,10 @@ export default function PaymentsCreatePage() {
                           onClick={() => openPay(inv)} sx={{ fontWeight: 700, minWidth: 55 }}>
                           Pay
                         </Button>
-                      )}                      {inv.status === "PAID" && (
+                      )}
+                      {inv.status === "PAID" && (
                         <Button size="small" variant="outlined" color="error"
-                          onClick={() => setConfirm({ open: true, invoiceId: inv.id, invoiceNum: inv.invoice_number })}
+                          onClick={() => openUnpay(inv)}
                           sx={{ fontWeight: 700, minWidth: 65 }}>
                           Unpay
                         </Button>
@@ -482,24 +502,28 @@ export default function PaymentsCreatePage() {
         }}
       />
 
+      {/* RefundDialog — shown when marking a PAID invoice as UNPAID */}
+      <RefundDialog
+        open={Boolean(refundInvoice)}
+        onClose={() => setRefundInvoice(null)}
+        invoice={refundInvoice}
+        onConfirm={doUnpay}
+      />
+
+      {/* ConfirmDialog — only used for DELETE now */}
       <ConfirmDialog
         open={confirm.open}
-        title={confirm.action === "delete" ? "Delete Invoice" : "Mark as Unpaid"}
-        message={confirm.action === "delete" ? `Permanently delete invoice ${confirm.invoiceNum}? This cannot be undone.` : `Mark invoice ${confirm.invoiceNum} as UNPAID? This will reverse the payment.`}
-        confirmText={confirm.action === "delete" ? "Yes, Delete" : "Yes, Unpay"}
+        title="Delete Invoice"
+        message={`Permanently delete invoice ${confirm.invoiceNum}? This cannot be undone.`}
+        confirmText="Yes, Delete"
         cancelText="Cancel"
-        onCancel={() => setConfirm({ open: false, invoiceId: null, invoiceNum: "" })}
+        onCancel={() => setConfirm({ open: false, invoiceId: null, invoiceNum: "", action: "delete" })}
         onConfirm={async () => {
           const id = confirm.invoiceId;
-          const action = confirm.action;
-          setConfirm({ open: false, invoiceId: null, invoiceNum: "", action: "unpay" });
-          if (action === "delete") {
-            await window.api.deleteInvoice({ id, actor: "admin", reason: "Manual delete" });
-            setMsg({ text: "Invoice deleted.", ok: true });
-            loadInvoices(selectedUser);
-          } else {
-            await doUnpay(id);
-          }
+          setConfirm({ open: false, invoiceId: null, invoiceNum: "", action: "delete" });
+          await window.api.deleteInvoice({ id, actor: "admin", reason: "Manual delete" });
+          setMsg({ text: "Invoice deleted.", ok: true });
+          loadInvoices(selectedUser);
         }}
       />
     </Box>

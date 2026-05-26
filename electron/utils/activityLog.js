@@ -22,6 +22,14 @@ function logAction(db, {
     before ? JSON.stringify(before) : null,
     after ? JSON.stringify(after) : null
   ]);
+
+  db.run(sql, [
+  actor, action, entity, entity_id, message,
+  before ? JSON.stringify(before) : null,
+  after  ? JSON.stringify(after)  : null,
+], (err) => {
+  if (err) console.error("[activityLog] Failed to insert:", err.message);
+});
 }
 
 module.exports = { logAction };

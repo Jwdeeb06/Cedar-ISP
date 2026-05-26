@@ -117,14 +117,19 @@ export default function IspSettings() {
   const [selectedBackup, setSelectedBackup] = useState(null);
   const [posEnabled,     setPosEnabled]     = useState(true);
   const [activeTab,      setActiveTab]      = useState(0);
-  const [mapLat,         setMapLat]         = useState(null);
-  const [mapLng,         setMapLng]         = useState(null);
+
+  // mapLat/mapLng: null = no pin set (map still shows at default center)
+  const [mapLat, setMapLat] = useState(null);
+  const [mapLng, setMapLng] = useState(null);
 
   useEffect(() => {
     (async () => {
       const data = await window.api.getSettings();
-      const lat = data.map_lat ? Number(data.map_lat) : null;
-      const lng = data.map_lng ? Number(data.map_lng) : null;
+      const lat  = data.map_lat && data.map_lat !== "" ? Number(data.map_lat) : null;
+      const lng  = data.map_lng && data.map_lng !== "" ? Number(data.map_lng) : null;
+      // Only set if valid numbers, otherwise keep null (no pin, map uses fallback center)
+      setMapLat((lat !== null && !isNaN(lat)) ? lat : null);
+      setMapLng((lng !== null && !isNaN(lng)) ? lng : null);
       setForm({
         isp_name:    data.isp_name    || "",
         isp_number:  data.isp_number  || "",
@@ -135,8 +140,6 @@ export default function IspSettings() {
         map_lng:     data.map_lng     || "",
         map_zoom:    data.map_zoom    || "14",
       });
-      setMapLat(lat);
-      setMapLng(lng);
       try {
         const pm = JSON.parse(data.payment_methods || "[]");
         setMethods(Array.isArray(pm) ? pm : []);
@@ -147,14 +150,44 @@ export default function IspSettings() {
 
   const set = (key) => (e) => setForm(p => ({ ...p, [key]: e.target.value }));
 
+  // When user types lat/lng manually, sync both form text and map pin
+  const handleLatChange = (e) => {
+    const raw = e.target.value;
+    setForm(p => ({ ...p, map_lat: raw }));
+    const v = parseFloat(raw);
+    setMapLat(raw === "" || isNaN(v) ? null : v);
+  };
+
+  const handleLngChange = (e) => {
+    const raw = e.target.value;
+    setForm(p => ({ ...p, map_lng: raw }));
+    const v = parseFloat(raw);
+    setMapLng(raw === "" || isNaN(v) ? null : v);
+  };
+
+  // When user clicks the map, update pin + text fields
+  const handleMapClick = (la, ln) => {
+    setMapLat(la);
+    setMapLng(ln);
+    setForm(p => ({
+      ...p,
+      map_lat: String(la),
+      map_lng: String(ln),
+    }));
+  };
+
   const save = async () => {
     setSaving(true);
     try {
-      const finalForm = { ...form, map_lat: mapLat != null ? String(mapLat) : "", map_lng: mapLng != null ? String(mapLng) : "" };
+      const finalForm = {
+        ...form,
+        map_lat: mapLat != null ? String(mapLat) : "",
+        map_lng: mapLng != null ? String(mapLng) : "",
+      };
       for (const [key, value] of Object.entries(finalForm))
         await window.api.setSetting({ key, value });
       await window.api.setSetting({ key: "payment_methods", value: JSON.stringify(methods) });
-      await window.api.setSetting({ key: "pos_enabled", value: posEnabled ? "1" : "0" });
+      await window.api.setSetting({ key: "pos_enabled",     value: posEnabled ? "1" : "0" });
       setMsg({ text: "Settings saved successfully.", ok: true });
     } catch {
       setMsg({ text: "Failed to save.", ok: false });
@@ -367,64 +400,50 @@ export default function IspSettings() {
       {/* ── MAP TAB ── */}
       {activeTab === 3 && (
         <Box sx={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 3, alignItems: "start" }}>
-          {/* Left: inputs */}
+
+          {/* Left: coordinate inputs */}
           <Section icon={<MapIcon fontSize="small" />}
             title="Map Default Location" subtitle="Enter coordinates or click the map">
             <FieldRow label="Latitude" hint="North/South (e.g. 33.5731)">
               <TextField size="small" fullWidth type="number"
-                value={form.map_lat} onChange={e => {
-                  set("map_lat")(e);
-                  const v = Number(e.target.value);
-                  setMapLat(e.target.value === "" ? null : v);
-                }} inputProps={{ step: "any" }} placeholder="33.5731" />
+                value={form.map_lat}
+                onChange={handleLatChange}
+                inputProps={{ step: "any" }} placeholder="33.5731" />
             </FieldRow>
             <FieldRow label="Longitude" hint="East/West (e.g. 35.3714)">
               <TextField size="small" fullWidth type="number"
-                value={form.map_lng} onChange={e => {
-                  set("map_lng")(e);
-                  const v = Number(e.target.value);
-                  setMapLng(e.target.value === "" ? null : v);
-                }} inputProps={{ step: "any" }} placeholder="35.3714" />
+                value={form.map_lng}
+                onChange={handleLngChange}
+                inputProps={{ step: "any" }} placeholder="35.3714" />
             </FieldRow>
             <FieldRow label="Zoom Level" hint="13=City · 15=Village · 17=Street">
               <TextField size="small" sx={{ width: 110 }} type="number"
                 value={form.map_zoom} onChange={set("map_zoom")}
                 inputProps={{ min: 8, max: 18, step: 1 }} />
             </FieldRow>
-            {mapLat != null && (
+            {(mapLat != null || form.map_lat) && (
               <Box sx={{ mt: 1 }}>
                 <Button size="small" color="error" onClick={() => {
                   setMapLat(null); setMapLng(null);
                   setForm(p => ({ ...p, map_lat: "", map_lng: "" }));
-                }}>Clear location</Button>
+                }}>Clear pin</Button>
               </Box>
             )}
           </Section>
 
-          {/* Right: live map */}
+          {/* Right: live map — always visible, no blocking condition */}
           <Box>
-            <Typography variant="caption" fontWeight={700} sx={{ opacity: 0.6, display: "block", mb: 0.75, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <Typography variant="caption" fontWeight={700}
+              sx={{ opacity: 0.6, display: "block", mb: 0.75, textTransform: "uppercase", letterSpacing: 0.5 }}>
               Click map to set location
             </Typography>
             <Box sx={{ borderRadius: 2, overflow: "hidden", border: "1.5px solid", borderColor: "grey.200" }}>
-              {mapLat != null && mapLng != null ? (
-                <LocationPicker
-                  lat={mapLat} lng={mapLng}
-                  onChange={(la, ln) => {
-                    setMapLat(la); setMapLng(ln);
-                    setForm(p => ({ ...p, map_lat: String(la), map_lng: String(ln) }));
-                  }}
-                  height={420}
-                />
-              ) : (
-                <Box sx={{ height: 420, display: "flex", alignItems: "center", justifyContent: "center",
-                  bgcolor: "grey.50", flexDirection: "column", gap: 1.5 }}>
-                  <MapIcon sx={{ opacity: 0.2, fontSize: 52 }} />
-                  <Typography variant="body2" sx={{ opacity: 0.4, textAlign: "center" }}>
-                    Enter latitude & longitude<br />on the left to show the map
-                  </Typography>
-                </Box>
-              )}
+              <LocationPicker
+                lat={mapLat}
+                lng={mapLng}
+                onChange={handleMapClick}
+                height={420}
+              />
             </Box>
           </Box>
         </Box>

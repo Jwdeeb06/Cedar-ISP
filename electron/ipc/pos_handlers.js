@@ -165,11 +165,11 @@ function registerPosHandlers(ipcMain, db) {
   // ══════════════════════════════════════════════════════════════════════════
   // HELD CARTS
   // ══════════════════════════════════════════════════════════════════════════
-  ipcMain.handle("pos-hold-cart", async (_, { cart, label, customer, actor }) => {
+  ipcMain.handle("pos-hold-cart", async (_, { cart, label, customer }) => {
     if (!cart || !Array.isArray(cart) || !cart.length) return { ok: false, reason: "EMPTY_CART" };
     return new Promise((res, rej) =>
-      db.run(`INSERT INTO pos_held_carts (label, cart_json, customer, actor) VALUES (?, ?, ?, ?)`,
-        [label || `Hold ${new Date().toLocaleTimeString()}`, JSON.stringify(cart), customer || null, actor || "admin"],
+      db.run(`INSERT INTO pos_held_carts (label, cart_json, customer) VALUES (?, ?, ?)`,
+        [label || `Hold ${new Date().toLocaleTimeString()}`, JSON.stringify(cart), customer || null],
         function (e) { e ? rej(e) : res({ ok: true, id: this.lastID }); })
     );
   });
@@ -209,20 +209,20 @@ function registerPosHandlers(ipcMain, db) {
     return new Promise((res, rej) => db.all(sql, params, (e, r) => e ? rej(e) : res(r || [])));
   });
 
-  ipcMain.handle("pos-add-customer", async (_, { name, phone, email, notes }) => {
+  ipcMain.handle("pos-add-customer", async (_, { name, phone, notes }) => {
     if (!name?.trim()) return { ok: false, reason: "NAME_REQUIRED" };
     return new Promise((res, rej) =>
-      db.run(`INSERT INTO pos_customers (name, phone, email, notes) VALUES (?, ?, ?, ?)`,
-        [name.trim(), phone || null, email || null, notes || null],
+      db.run(`INSERT INTO pos_customers (name, phone, notes) VALUES (?, ?, ?)`,
+        [name.trim(), phone || null, notes || null],
         function (e) { e ? rej(e) : res({ ok: true, id: this.lastID }); })
     );
   });
 
-  ipcMain.handle("pos-update-customer", async (_, { id, name, phone, email, notes }) => {
+  ipcMain.handle("pos-update-customer", async (_, { id, name, phone, notes }) => {
     if (!id) return { ok: false, reason: "ID_REQUIRED" };
     return new Promise((res, rej) =>
-      db.run(`UPDATE pos_customers SET name=?, phone=?, email=?, notes=? WHERE id=?`,
-        [name.trim(), phone || null, email || null, notes || null, id],
+      db.run(`UPDATE pos_customers SET name=?, phone=?, notes=? WHERE id=?`,
+        [name.trim(), phone || null, notes || null, id],
         function (e) { e ? rej(e) : res({ ok: true, updated: this.changes }); })
     );
   });

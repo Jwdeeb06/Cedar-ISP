@@ -108,7 +108,7 @@ function registerPaymentHandlers(ipcMain, db) {
       return { ok: false, reason: "ALREADY_PAID" };
 
     // Scale lbp/usd proportionally if capped
-    const scale        = totalUsd > 0 ? effectiveUsd / totalUsd : 1;
+    const scale            = totalUsd > 0 ? effectiveUsd / totalUsd : 1;
     const effectiveUsdOnly = usdAmount * scale;
     const effectiveLbp     = lbpAmount * scale;
 
@@ -122,12 +122,12 @@ function registerPaymentHandlers(ipcMain, db) {
 
     await db_run(db, "BEGIN TRANSACTION");
     try {
-      // 1. Insert payment
+      // 1. Insert payment — NOW stores amount_usd and amount_lbp
       const paymentId = await new Promise((resolve, reject) =>
         db.run(
-          `INSERT INTO payments (user_id, invoice_id, amount, method, note, paid_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [inv.user_id, invoiceId, effectiveUsd, method, paymentNote, nowIso],
+          `INSERT INTO payments (user_id, invoice_id, amount, amount_usd, amount_lbp, method, note, paid_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [inv.user_id, invoiceId, effectiveUsd, effectiveUsdOnly, effectiveLbp, method, paymentNote, nowIso],
           function (err) { err ? reject(err) : resolve(this.lastID); }
         )
       );
@@ -154,7 +154,7 @@ function registerPaymentHandlers(ipcMain, db) {
 
       await db_run(db, "COMMIT");
 
-      // 5. Drawer IN — now records both USD and LBP separately
+      // 5. Drawer IN — records both USD and LBP separately
       drawerIn(db, {
         amount_usd: effectiveUsdOnly,
         amount_lbp: effectiveLbp,
@@ -175,7 +175,7 @@ function registerPaymentHandlers(ipcMain, db) {
       });
 
       return {
-        ok: true,
+        ok:             true,
         payment_id:     paymentId,
         paid_usd:       effectiveUsd,
         invoice_status: newStatus,
@@ -186,27 +186,29 @@ function registerPaymentHandlers(ipcMain, db) {
     }
   });
 
-  // ── GET INVOICE DETAIL ────────────────────────────────────────────────────
+  // ── GET INVOICE DETAIL — now returns paid_usd and paid_lbp totals ─────────
   ipcMain.handle("get-invoice-detail", async (event, invoiceId) => {
     invoiceId = Number(invoiceId);
     if (!Number.isFinite(invoiceId)) return null;
 
     return new Promise((resolve, reject) => {
       db.get(
-        `SELECT
-           i.*,
-           u.name AS user_name,
-           u.mobile AS user_mobile,
-           u.expiry_date AS user_expiry_date,
-           u.balance AS user_balance,
-           s.name AS service_name,
-           COALESCE(SUM(CASE WHEN p.is_deleted = 0 THEN p.amount ELSE 0 END), 0) AS paid_sum
-         FROM invoices i
-         LEFT JOIN users u ON u.id = i.user_id
-         LEFT JOIN services s ON s.id = i.service_id
-         LEFT JOIN payments p ON p.invoice_id = i.id
-         WHERE i.id = ? AND i.is_deleted = 0
-         GROUP BY i.id`,
+`SELECT
+   i.*,
+   u.name AS user_name,
+   u.mobile AS user_mobile,
+   u.expiry_date AS user_expiry_date,
+   u.balance AS user_balance,
+   s.name AS service_name,
+   COALESCE(SUM(CASE WHEN p.is_deleted = 0 THEN p.amount ELSE 0 END), 0) AS paid_sum,
+   COALESCE(SUM(CASE WHEN p.is_deleted = 0 THEN COALESCE(p.amount_usd, p.amount) ELSE 0 END), 0) AS paid_usd,
+   COALESCE(SUM(CASE WHEN p.is_deleted = 0 THEN COALESCE(p.amount_lbp, 0) ELSE 0 END), 0) AS paid_lbp
+ FROM invoices i
+ LEFT JOIN users u ON u.id = i.user_id
+ LEFT JOIN services s ON s.id = i.service_id
+ LEFT JOIN payments p ON p.invoice_id = i.id
+ WHERE i.id = ? AND COALESCE(i.is_deleted, 0) = 0
+ GROUP BY i.id`,
         [invoiceId],
         (err, row) => {
           if (err) return reject(err);
@@ -214,6 +216,8 @@ function registerPaymentHandlers(ipcMain, db) {
           resolve({
             ...row,
             paid_sum:  Number(row.paid_sum || 0),
+            paid_usd:  Number(row.paid_usd || 0),
+            paid_lbp:  Number(row.paid_lbp || 0),
             remaining: Math.max(0, Number(row.amount || 0) - Number(row.paid_sum || 0)),
           });
         }
@@ -231,7 +235,7 @@ function registerPaymentHandlers(ipcMain, db) {
         `SELECT p.*, u.name AS user_name
          FROM payments p
          LEFT JOIN users u ON u.id = p.user_id
-         WHERE p.invoice_id = ? AND p.is_deleted = 0
+         WHERE p.invoice_id = ? AND COALESCE(p.is_deleted, 0) = 0
          ORDER BY p.paid_at ASC`,
         [invoiceId],
         (err, rows) => (err ? reject(err) : resolve(rows || []))
@@ -249,11 +253,17 @@ function db_run(db, sql, params = []) {
 
 function addOneMonthISO(isoDate) {
   const [y, m, d] = isoDate.split("-").map(Number);
-  const dt = new Date(y, m, d);
-  const yy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
+  // m is 1-based (1-12). new Date(y, m, d) uses 0-based months,
+  // so passing m (instead of m-1) advances by exactly 1 month.
+  // Clamp to last day if the day overflows (e.g. Jan 31 → Feb 28).
+  const candidate = new Date(y, m, d);
+  const targetMonth = m % 12; // expected 0-based month after +1
+  if (candidate.getMonth() !== targetMonth) {
+    // day overflowed — use last day of target month
+    const last = new Date(y, m + 1, 0);
+    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+  }
+  return `${candidate.getFullYear()}-${String(candidate.getMonth() + 1).padStart(2, "0")}-${String(candidate.getDate()).padStart(2, "0")}`;
 }
 
 function recalcUserStatus(db, userId) {

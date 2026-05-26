@@ -14,9 +14,9 @@ import { bFormat } from "../utils/dateUtils";
 import CloseIcon       from "@mui/icons-material/Close";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 
-import PayDialog            from "../components/payments/PayDialog";
+import PayDialog          from "../components/payments/PayDialog";
+import RefundDialog       from "../components/payments/RefundDialog";
 import PrintInvoiceButton from "../components/payments/PrintInvoiceButton";
-import ConfirmDialog        from "../components/ConfirmDialog";
 
 const fmt = (n) =>
   Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,10 +34,10 @@ export default function UserInvoicesPage({ userId, userName }) {
   const [search,       setSearch]       = useState("");
 
   // pay dialog
-  const [payInvoice,   setPayInvoice]   = useState(null);
+  const [payInvoice,    setPayInvoice]    = useState(null);
 
-  // unpay confirm
-  const [confirm, setConfirm] = useState({ open: false, invoiceId: null, invoiceNum: "" });
+  // refund dialog (replaces old ConfirmDialog for unpay)
+  const [refundInvoice, setRefundInvoice] = useState(null);
 
   // ── load ────────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -71,9 +71,23 @@ export default function UserInvoicesPage({ userId, userName }) {
     else setMsg({ text: "Could not load invoice detail.", ok: false });
   };
 
-  // ── unpay ───────────────────────────────────────────────────────────────────
-  const doUnpay = async (invoiceId) => {
-    const res = await window.api.setInvoiceStatus({ id: invoiceId, status: "UNPAID" });
+  // Opens refund dialog with full invoice detail (includes paid_usd/paid_lbp)
+  const openUnpay = async (inv) => {
+    const detail = await window.api.getInvoiceDetail(inv.id);
+    if (detail) setRefundInvoice(detail);
+    else setMsg({ text: "Could not load invoice detail.", ok: false });
+  };
+
+  // Called by RefundDialog on confirm — receives { refund_usd, refund_lbp, lbp_rate }
+  const doUnpay = async ({ refund_usd, refund_lbp, lbp_rate }) => {
+    const res = await window.api.setInvoiceStatus({
+      id: refundInvoice.id,
+      status: "UNPAID",
+      refund_usd,
+      refund_lbp,
+      lbp_rate,
+    });
+    setRefundInvoice(null);
     if (res?.ok) {
       setMsg({ text: "Invoice marked as unpaid.", ok: true });
       load();
@@ -119,7 +133,6 @@ export default function UserInvoicesPage({ userId, userName }) {
               </Typography>
             </Box>
           </Box>
-
         </Paper>
 
         {/* ── Stats ───────────────────────────────────────────────────────── */}
@@ -249,7 +262,7 @@ export default function UserInvoicesPage({ userId, userName }) {
                         )}
                         {inv.status === "PAID" && (
                           <Button size="small" variant="outlined" color="error"
-                            onClick={() => setConfirm({ open: true, invoiceId: inv.id, invoiceNum: inv.invoice_number })}
+                            onClick={() => openUnpay(inv)}
                             sx={{ fontWeight: 700, minWidth: 70 }}>
                             Unpay
                           </Button>
@@ -276,19 +289,12 @@ export default function UserInvoicesPage({ userId, userName }) {
           }}
         />
 
-        {/* ── Unpay Confirm ───────────────────────────────────────────────── */}
-        <ConfirmDialog
-          open={confirm.open}
-          title="Mark as Unpaid"
-          message={`Mark invoice ${confirm.invoiceNum} as UNPAID? This will reverse the payment and affect the user's status.`}
-          confirmText="Yes, Unpay"
-          cancelText="Cancel"
-          onCancel={() => setConfirm({ open: false, invoiceId: null, invoiceNum: "" })}
-          onConfirm={async () => {
-            const id = confirm.invoiceId;
-            setConfirm({ open: false, invoiceId: null, invoiceNum: "" });
-            await doUnpay(id);
-          }}
+        {/* ── Refund Dialog — replaces ConfirmDialog for unpay ─────────── */}
+        <RefundDialog
+          open={Boolean(refundInvoice)}
+          onClose={() => setRefundInvoice(null)}
+          invoice={refundInvoice}
+          onConfirm={doUnpay}
         />
 
       </Box>

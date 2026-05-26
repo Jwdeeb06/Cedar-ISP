@@ -1,80 +1,25 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
-const fs = require("fs");
+const fs   = require("fs");
 
 require("./database/schema");
 const db = require("./database/db");
 const { registerIpcHandlers }     = require("./ipc/index.js");
 const { registerLicenseHandlers } = require("./ipc/license_handlers");
 
+// ── Logger — defined first so all code below can safely call log() ────────────
+function log(...args) {
+  try {
+    const file = path.join(app.getPath("userData"), "main.log");
+    fs.appendFileSync(file, `[${new Date().toISOString()}] ${args.join(" ")}\n`);
+  } catch {}
+}
 
-const now = new Date();
-const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+ipcMain.on("log", (event, msg) => { log("PRELOAD:", String(msg)); });
 
-db.all(`SELECT id, blocked FROM users WHERE COALESCE(is_deleted,0)=0`, [], (err, rows) => {
-  if (err) return;
-
-  rows.forEach((u) => {
-    if (Number(u.blocked) === 1) {
-      db.run(`UPDATE users SET status = 'SUSPENDED' WHERE id = ?`, [u.id]);
-      return;
-    }
-
-    db.get(
-      `SELECT id FROM invoices
-       WHERE user_id = ?
-         AND month = ?
-         AND status = 'PAID'
-         AND COALESCE(affects_expiry, 1) = 1
-         AND COALESCE(is_deleted, 0) = 0
-       LIMIT 1`,
-      [u.id, currentMonth],
-      (err2, paidRow) => {
-        if (err2) return;
-        const status = paidRow ? "ACTIVE" : "INACTIVE";
-        db.run(`UPDATE users SET status = ? WHERE id = ?`, [status, u.id]);
-      }
-    );
-  });
-
-  console.log("User statuses recalculated on startup");
-});
-
-
+// ── Register all IPC handlers ─────────────────────────────────────────────────
 registerIpcHandlers(ipcMain, db);
 registerLicenseHandlers(ipcMain, db, app);
-
-// ── Daily auto-backup ─────────────────────────────────────────────────────────
-;(function runDailyBackup() {
-  try {
-    const dataDir   = app.getPath("userData");
-    const dbPath    = path.join(dataDir, "isp.db");
-    const backupDir = path.join(dataDir, "backups");
-
-    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-
-    const today      = new Date().toISOString().slice(0, 10);
-    const backupFile = path.join(backupDir, `isp-${today}.db`);
-
-    if (!fs.existsSync(backupFile)) {
-      fs.copyFileSync(dbPath, backupFile);
-      console.log(`[Auto-Backup] Saved: ${backupFile}`);
-    } else {
-      console.log(`[Auto-Backup] Already backed up today: ${today}`);
-    }
-
-    const files = fs.readdirSync(backupDir)
-      .filter(f => f.startsWith("isp-") && f.endsWith(".db"))
-      .sort().reverse();
-
-    files.slice(7).forEach(f => {
-      try { fs.unlinkSync(path.join(backupDir, f)); }
-      catch (e) { console.error(`[Auto-Backup] Failed to prune: ${f}`, e); }
-    });
-  } catch (e) {
-    console.error("[Auto-Backup] Failed:", e);
-  }
-})();
 
 // ── App controls ──────────────────────────────────────────────────────────────
 ipcMain.handle("app-restart", () => { app.relaunch(); app.exit(0); });
@@ -100,6 +45,7 @@ ipcMain.handle("list-backups", () => {
   }
 });
 
+// ── Database Backup ───────────────────────────────────────────────────────────
 ipcMain.handle("db-backup", async () => {
   try {
     const { dialog } = require("electron");
@@ -148,8 +94,10 @@ ipcMain.handle("db-restore", async (event, backupName) => {
       if (canceled || !filePaths?.length) return { ok: false, reason: "CANCELLED" };
       srcPath = filePaths[0];
     }
-    const header  = Buffer.alloc(16);
-    const fd      = fs.openSync(srcPath, "r");
+
+    // Validate it's a real SQLite file
+    const header = Buffer.alloc(16);
+    const fd     = fs.openSync(srcPath, "r");
     fs.readSync(fd, header, 0, 16, 0);
     fs.closeSync(fd);
     if (!header.slice(0, 15).toString("ascii").startsWith("SQLite format 3"))
@@ -158,7 +106,7 @@ ipcMain.handle("db-restore", async (event, backupName) => {
     const backupPath = dbPath + ".pre-restore-" + Date.now();
     fs.copyFileSync(dbPath, backupPath);
 
-    await new Promise((resolve) => db.close((err) => { resolve(); }));
+    await new Promise((resolve) => db.close(() => resolve()));
     fs.copyFileSync(srcPath, dbPath);
     log("DB restored from:", srcPath);
 
@@ -171,6 +119,7 @@ ipcMain.handle("db-restore", async (event, backupName) => {
   }
 });
 
+// ── Print HTML → PDF ──────────────────────────────────────────────────────────
 ipcMain.handle("print-html", async (event, { html, title }) => {
   try {
     const tmpDir   = app.getPath("temp");
@@ -180,13 +129,10 @@ ipcMain.handle("print-html", async (event, { html, title }) => {
 
     fs.writeFileSync(htmlFile, html, "utf-8");
 
-    const isLandscape = html.includes("landscape");
-    const is80mm      = html.includes("80mm");
-    const isA5        = html.includes("A5");
+    const is80mm = html.includes("80mm");
+    const isA5   = html.includes("A5");
 
-    let pageSize = "A4";
-    if (isA5)   pageSize = "A5";
-
+    const pageSize  = isA5 ? "A5" : "A4";
     const winWidth  = is80mm ? 320  : 1400;
     const winHeight = is80mm ? 1200 : 1000;
 
@@ -197,7 +143,7 @@ ipcMain.handle("print-html", async (event, { html, title }) => {
 
     await new Promise((resolve, reject) => {
       printWin.webContents.once("did-finish-load", resolve);
-      printWin.webContents.once("did-fail-load", reject);
+      printWin.webContents.once("did-fail-load",   reject);
       printWin.loadFile(htmlFile);
     });
 
@@ -205,7 +151,7 @@ ipcMain.handle("print-html", async (event, { html, title }) => {
 
     const pdfData = await printWin.webContents.printToPDF({
       printBackground: true,
-      landscape: false,
+      landscape:       false,
       pageSize,
       margins: { top: 0, bottom: 0, left: 0, right: 0 },
     });
@@ -225,16 +171,7 @@ ipcMain.handle("print-html", async (event, { html, title }) => {
   }
 });
 
-// ── Logger ────────────────────────────────────────────────────────────────────
-function log(...args) {
-  try {
-    const file = path.join(app.getPath("userData"), "main.log");
-    fs.appendFileSync(file, `[${new Date().toISOString()}] ${args.join(" ")}\n`);
-  } catch {}
-}
-
-ipcMain.on("log", (event, msg) => { log("PRELOAD:", String(msg)); });
-
+// ── Create main window ────────────────────────────────────────────────────────
 function createWindow() {
   const { Menu } = require("electron");
   Menu.setApplicationMenu(null);
@@ -245,47 +182,37 @@ function createWindow() {
   const indexPath   = path.join(appPath, "build", "index.html");
 
   log("=== APP START ===");
-  log("isDev=", String(isDev));
-  log("isPackaged=", String(app.isPackaged));
-  log("appPath=", appPath);
-  log("userData=", app.getPath("userData"));
+  log("isDev=",       String(isDev));
+  log("isPackaged=",  String(app.isPackaged));
+  log("appPath=",     appPath);
+  log("userData=",    app.getPath("userData"));
   log("preloadPath=", preloadPath, "exists=", String(fs.existsSync(preloadPath)));
-  log("indexPath=", indexPath, "exists=", String(fs.existsSync(indexPath)));
+  log("indexPath=",   indexPath,   "exists=", String(fs.existsSync(indexPath)));
 
   const iconPath = path.join(appPath, "assets", "icon.png");
+
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width:    1200,
+    height:   800,
     minWidth: 900,
-    minHeight: 600,
+    minHeight:600,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
 
+    // FIX 4: removed titleBarOverlay — only works with titleBarStyle "hidden",
+    // not with "default". Using OS default window frame throughout.
     titleBarStyle: "default",
 
-    ...(process.platform !== "darwin"
-      ? {
-          titleBarOverlay: {
-            color: "#00000000",
-            symbolColor: "#111827",
-            height: 66,
-          },
-        }
-      : {}),
-
     webPreferences: {
-      preload: preloadPath,
+      preload:          preloadPath,
       contextIsolation: true,
-      nodeIntegration: false,
+      nodeIntegration:  false,
     },
   });
 
-  // ── Window controls for frameless window ────────────────────────────────
-  ipcMain.handle("win-minimize", () => win.minimize());
-  ipcMain.handle("win-maximize", () => win.isMaximized() ? win.unmaximize() : win.maximize());
-  ipcMain.handle("win-close",    () => win.close());
-  ipcMain.handle("win-is-maximized", () => win.isMaximized());
+  // FIX 3: window control handlers removed — using OS default window frame.
+  // preload.js no longer exposes winMinimize/winMaximize/winClose either.
 
-  // ── DevTools toggle (called from navbar button) ─────────────────────────
+  // ── DevTools toggle ─────────────────────────────────────────────────────
   ipcMain.handle("toggle-devtools", () => {
     if (win.webContents.isDevToolsOpened()) {
       win.webContents.closeDevTools();
@@ -308,7 +235,6 @@ function createWindow() {
 
   if (isDev) {
     win.loadURL("http://localhost:3000");
-    // DevTools no longer auto-opens — toggle from navbar button
   } else {
     win.loadFile(indexPath);
     win.webContents.on("will-navigate", (event, url) => {
@@ -320,7 +246,67 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+// ── App ready ─────────────────────────────────────────────────────────────────
+app.whenReady().then(() => {
+
+  // FIX 2: single SQL UPDATE replaces N+1 startup queries
+  // Sets SUSPENDED for blocked users, ACTIVE for those with a paid invoice
+  // this month, INACTIVE for everyone else — all in 2 queries.
+  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+  db.run(`UPDATE users SET status = 'SUSPENDED' WHERE blocked = 1 AND COALESCE(is_deleted,0)=0`);
+
+  db.run(`
+    UPDATE users SET status = CASE
+      WHEN EXISTS (
+        SELECT 1 FROM invoices
+        WHERE invoices.user_id = users.id
+          AND invoices.month = ?
+          AND invoices.status = 'PAID'
+          AND COALESCE(invoices.affects_expiry, 1) = 1
+          AND COALESCE(invoices.is_deleted, 0) = 0
+      ) THEN 'ACTIVE'
+      ELSE 'INACTIVE'
+    END
+    WHERE blocked = 0 AND COALESCE(is_deleted, 0) = 0
+  `, [currentMonth], (err) => {
+    if (err) console.error("Status recalc error:", err);
+    else console.log("User statuses recalculated on startup");
+  });
+
+  // FIX 1: daily backup now runs inside app.whenReady() — safe to call app.getPath()
+  try {
+    const dataDir   = app.getPath("userData");
+    const dbPath    = path.join(dataDir, "isp.db");
+    const backupDir = path.join(dataDir, "backups");
+
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+    const today      = new Date().toISOString().slice(0, 10);
+    const backupFile = path.join(backupDir, `isp-${today}.db`);
+
+    if (!fs.existsSync(backupFile)) {
+      fs.copyFileSync(dbPath, backupFile);
+      console.log(`[Auto-Backup] Saved: ${backupFile}`);
+    } else {
+      console.log(`[Auto-Backup] Already backed up today: ${today}`);
+    }
+
+    // Keep last 7 backups
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith("isp-") && f.endsWith(".db"))
+      .sort().reverse();
+    files.slice(7).forEach(f => {
+      try { fs.unlinkSync(path.join(backupDir, f)); }
+      catch (e) { console.error(`[Auto-Backup] Failed to prune: ${f}`, e); }
+    });
+  } catch (e) {
+    console.error("[Auto-Backup] Failed:", e);
+  }
+
+  createWindow();
+});
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

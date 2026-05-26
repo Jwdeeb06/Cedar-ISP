@@ -125,7 +125,7 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("list-activity-log", filters),
   listActivityDays: (payload) =>
     ipcRenderer.invoke("list-activity-days", payload),
-
+listActivityActors: () => ipcRenderer.invoke("list-activity-actors"),
   // ── DRAWER MIGRATION ─────────────────────────────────────────────────────
   migrateDrawerCompanies: () => ipcRenderer.invoke("migrate-drawer-companies"),
 
@@ -167,17 +167,6 @@ contextBridge.exposeInMainWorld("api", {
   mapUpdateFiberBox: (payload) =>
     ipcRenderer.invoke("map-update-fiber-box", payload),
   mapDeleteFiberBox: (id) => ipcRenderer.invoke("map-delete-fiber-box", id),
-
-  // ── WINDOW CONTROLS (frameless) ───────────────────────────────────────────
-  winMinimize: () => ipcRenderer.send("win-minimize"),
-  winMaximize: () => ipcRenderer.send("win-maximize"),
-  winClose: () => ipcRenderer.send("win-close"),
-
-  // ── WINDOW CONTROLS (frameless) ───────────────────────────────────────────
-  winMinimize: () => ipcRenderer.invoke("win-minimize"),
-  winMaximize: () => ipcRenderer.invoke("win-maximize"),
-  winClose: () => ipcRenderer.invoke("win-close"),
-  winIsMaximized: () => ipcRenderer.invoke("win-is-maximized"),
 
   // ── PRINT ─────────────────────────────────────────────────────────────────
   printHtml: (payload) => ipcRenderer.invoke("print-html", payload),

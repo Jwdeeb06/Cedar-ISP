@@ -12,12 +12,10 @@ import SearchIcon     from "@mui/icons-material/Search";
 import ReceiptIcon    from "@mui/icons-material/Receipt";
 import UndoIcon       from "@mui/icons-material/Undo";
 import PrintIcon      from "@mui/icons-material/Print";
-import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import BarChartIcon   from "@mui/icons-material/BarChart";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import dayjs from "dayjs";
 import { bFormat } from "../../utils/dateUtils";
+import RefundDialog from "../../components/payments/RefundDialog";
 
 const fmt = (n) => (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const ll  = (n) => (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -33,13 +31,25 @@ function StatCard({ label, value, sub, color, onClick, active }) {
       transition: "all 0.15s",
       "&:hover": onClick ? { borderColor: `${color}.main` } : {},
     }}>
-      <Typography variant="caption" fontWeight={700} sx={{ opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.5, display: "block" }}>
+      <Typography variant="caption" fontWeight={700}
+        sx={{ opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.5, display: "block" }}>
         {label}
       </Typography>
       <Typography variant="h6" fontWeight={900} color={`${color}.main`} sx={{ mt: 0.25 }}>{value}</Typography>
       {sub && <Typography variant="caption" sx={{ opacity: 0.55 }}>{sub}</Typography>}
     </Paper>
   );
+}
+
+// ── Status chip ───────────────────────────────────────────────────────────────
+function StatusChip({ status }) {
+  const cfg = {
+    PAID:     { color: "success", label: "PAID" },
+    PARTIAL:  { color: "info",    label: "PARTIAL" },
+    UNPAID:   { color: "warning", label: "UNPAID" },
+    REFUNDED: { color: "error",   label: "REFUNDED" },
+  }[status] || { color: "default", label: status || "PAID" };
+  return <Chip label={cfg.label} size="small" color={cfg.color} sx={{ fontWeight: 700, fontSize: 11 }} />;
 }
 
 // ── Sale detail dialog ────────────────────────────────────────────────────────
@@ -51,7 +61,6 @@ function SaleDetailDialog({ saleId, onClose, onRefund }) {
     if (!saleId) return;
     window.api.posGetSale(saleId).then(s => {
       setSale(s);
-      // Load invoice for partial/unpaid
       if (s?.status === "PARTIAL" || s?.status === "UNPAID") {
         window.api.posListInvoices?.({ sale_id: s.id }).then(invs => {
           if (invs?.length) setInvoice(invs[0]);
@@ -85,7 +94,6 @@ function SaleDetailDialog({ saleId, onClose, onRefund }) {
       </Box>
 
       <DialogContent sx={{ p: 2.5 }}>
-        {/* Items */}
         {(sale.items || []).map((li, i) => (
           <Box key={i} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center",
             py: 0.5, borderBottom: "1px solid", borderColor: "grey.100" }}>
@@ -97,7 +105,6 @@ function SaleDetailDialog({ saleId, onClose, onRefund }) {
           </Box>
         ))}
 
-        {/* Totals */}
         <Box sx={{ mt: 1.5 }}>
           {Number(sale.subtotal) !== Number(sale.total) && (
             <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
@@ -117,7 +124,6 @@ function SaleDetailDialog({ saleId, onClose, onRefund }) {
             <Typography fontWeight={900} color="primary.main" fontSize={16}>${fmt(sale.total)}</Typography>
           </Box>
 
-          {/* Payment breakdown for PARTIAL / UNPAID */}
           {(status === "PARTIAL" || status === "UNPAID") && invoice && (
             <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2,
               bgcolor: status === "PARTIAL" ? "info.50" : "warning.50",
@@ -136,12 +142,6 @@ function SaleDetailDialog({ saleId, onClose, onRefund }) {
                 <Typography fontSize={13} color="error.main" fontWeight={700}>⏳ Amount Due</Typography>
                 <Typography fontSize={13} fontWeight={800} color="error.main">${fmt(invoice.remaining)}</Typography>
               </Box>
-              {invoice.created_at && (
-                <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                  <Typography fontSize={12} color="text.secondary">Invoice created</Typography>
-                  <Typography fontSize={12} color="text.secondary">{bFormat(invoice.created_at, "DD/MM/YYYY HH:mm")}</Typography>
-                </Box>
-              )}
             </Box>
           )}
 
@@ -155,7 +155,9 @@ function SaleDetailDialog({ saleId, onClose, onRefund }) {
               <Typography fontSize={12} fontWeight={700}>{sale.customer}</Typography>
             </Box>
           )}
-          {sale.note && <Typography fontSize={12} sx={{ mt: 1, opacity: 0.6, fontStyle: "italic" }}>{sale.note}</Typography>}
+          {sale.note && (
+            <Typography fontSize={12} sx={{ mt: 1, opacity: 0.6, fontStyle: "italic" }}>{sale.note}</Typography>
+          )}
         </Box>
       </DialogContent>
 
@@ -187,69 +189,42 @@ function SaleDetailDialog({ saleId, onClose, onRefund }) {
             + '</body></html>';
           window.api.printHtml?.({ html, title: "Receipt — " + sale.sale_number });
         }} sx={{ fontWeight: 700 }}>Print</Button>
+        {/* Refund button — opens RefundDialog via onRefund with adapted sale object */}
         {status === "PAID" && (
           <Button variant="outlined" color="error" startIcon={<UndoIcon />}
-            onClick={() => onRefund(sale)} sx={{ fontWeight: 800 }}>Refund</Button>
+            onClick={() => onRefund({
+              id:             sale.id,
+              paid_sum:       sale.total,
+              paid_usd:       sale.total,
+              paid_lbp:       0,
+              invoice_number: sale.sale_number,
+              user_name:      sale.customer_name || sale.customer || "Walk-in",
+              month:          sale.created_at?.slice(0, 7) || "",
+            })}
+            sx={{ fontWeight: 800 }}>Refund</Button>
         )}
       </DialogActions>
     </Dialog>
   );
 }
 
-// ── Refund dialog ─────────────────────────────────────────────────────────────
-function RefundDialog({ sale, onConfirm, onClose }) {
-  const [reason,  setReason]  = useState("Customer request");
-  const [loading, setLoading] = useState(false);
-  if (!sale) return null;
-  return (
-    <Dialog open maxWidth="xs" fullWidth onClose={onClose} PaperProps={{ sx: { borderRadius: 3 } }}>
-      <DialogTitle sx={{ fontWeight: 900, color: "error.main" }}>Confirm Refund</DialogTitle>
-      <DialogContent>
-        <Typography sx={{ mb: 2 }}>
-          Refund <strong>${fmt(sale.total)}</strong> for <strong>{sale.sale_number}</strong>? Stock will be restored.
-        </Typography>
-        <TextField label="Reason" value={reason} onChange={e => setReason(e.target.value)} fullWidth />
-      </DialogContent>
-      <DialogActions sx={{ px: 2.5, pb: 2.5 }}>
-        <Button onClick={onClose} disabled={loading}>Cancel</Button>
-        <Button variant="contained" color="error" disabled={loading}
-          onClick={async () => { setLoading(true); await onConfirm(sale.id, reason); setLoading(false); }}
-          sx={{ fontWeight: 800 }}>{loading ? "Processing…" : "Confirm Refund"}</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// ── Status chip ───────────────────────────────────────────────────────────────
-function StatusChip({ status }) {
-  const cfg = {
-    PAID:     { color: "success", label: "PAID" },
-    PARTIAL:  { color: "info",    label: "PARTIAL" },
-    UNPAID:   { color: "warning", label: "UNPAID" },
-    REFUNDED: { color: "error",   label: "REFUNDED" },
-  }[status] || { color: "default", label: status || "PAID" };
-  return <Chip label={cfg.label} size="small" color={cfg.color} sx={{ fontWeight: 700, fontSize: 11 }} />;
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 export default function PosSalesPage() {
-  const [viewDay,    setViewDay]    = useState(dayjs());
-  const [viewMonth,  setViewMonth]  = useState(dayjs());
-  const [mode,       setMode]       = useState("day");
-  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL | PAID | UNPAID | PARTIAL | REFUNDED
-  const [sales,      setSales]      = useState([]);
-  const [saleInvoices, setSaleInvoices] = useState({}); // sale_id -> invoice
-  const [monthlySummary, setMonthlySummary] = useState({});
-  const [daySummary,     setDaySummary]     = useState({});
-  const [topItems,   setTopItems]   = useState([]);
-  const [drawer,     setDrawer]     = useState({});
-  const [search,     setSearch]     = useState("");
-  const [selSaleId,  setSelSaleId]  = useState(null);
-  const [expandedRow, setExpandedRow] = useState(null);
-  const [refundSale, setRefundSale] = useState(null);
-  const [msg,        setMsg]        = useState({ text: "", ok: true });
-  const [loading,    setLoading]    = useState(false);
-  const [profitReport, setProfitReport] = useState({ revenue: 0, cost: 0, profit: 0 });
+  const [viewDay,       setViewDay]       = useState(dayjs());
+  const [viewMonth,     setViewMonth]     = useState(dayjs());
+  const [mode,          setMode]          = useState("day");
+  const [statusFilter,  setStatusFilter]  = useState("ALL");
+  const [sales,         setSales]         = useState([]);
+  const [monthlySummary,setMonthlySummary]= useState({});
+  const [daySummary,    setDaySummary]    = useState({});
+  const [topItems,      setTopItems]      = useState([]);
+  const [drawer,        setDrawer]        = useState({});
+  const [search,        setSearch]        = useState("");
+  const [selSaleId,     setSelSaleId]     = useState(null);
+  const [refundSale,    setRefundSale]    = useState(null); // adapted object for RefundDialog
+  const [msg,           setMsg]           = useState({ text: "", ok: true });
+  const [loading,       setLoading]       = useState(false);
+  const [profitReport,  setProfitReport]  = useState({ revenue: 0, cost: 0, profit: 0 });
 
   const dayStr   = viewDay.format("YYYY-MM-DD");
   const monthStr = viewMonth.format("YYYY-MM");
@@ -267,20 +242,21 @@ export default function PosSalesPage() {
         window.api.posProfitReport(filters),
       ]);
       const salesData = sl || [];
-      // Fetch pos_invoices for partial/unpaid sales and merge into sale objects
+
+      // Fetch pos_invoices for partial/unpaid sales
       const partialUnpaid = salesData.filter(s => s.status === "PARTIAL" || s.status === "UNPAID");
       if (partialUnpaid.length > 0) {
         try {
           const invData = await window.api.posListInvoices?.({}).catch(() => []);
           const invMap = {};
           (invData || []).forEach(inv => { invMap[inv.sale_id] = inv; });
-          setSaleInvoices(invMap);
           salesData.forEach(s => {
             const inv = invMap[s.id];
             if (inv) { s.inv_paid = inv.paid; s.inv_remaining = inv.remaining; s.inv_id = inv.id; }
           });
         } catch {}
       }
+
       setSales(salesData);
       setMonthlySummary(sm || {});
       setDaySummary(dm || {});
@@ -313,39 +289,55 @@ export default function PosSalesPage() {
     return r;
   }, [sales, statusFilter, search]);
 
-  // compute totals from ALL sales for summary cards
   const paidSales    = useMemo(() => sales.filter(s => s.status === "PAID" || !s.status), [sales]);
   const unpaidSales  = useMemo(() => sales.filter(s => s.status === "UNPAID"), [sales]);
   const partialSales = useMemo(() => sales.filter(s => s.status === "PARTIAL"), [sales]);
 
-  // Collected = PAID totals + partial PAID portions (from invoices)
   const collectedTotal = useMemo(() => {
     const fromPaid    = paidSales.reduce((a, s) => a + Number(s.total || 0), 0);
     const fromPartial = partialSales.reduce((a, s) => a + Number(s.inv_paid || 0), 0);
     return fromPaid + fromPartial;
   }, [paidSales, partialSales]);
 
-  // Due = UNPAID totals + partial REMAINING portions (from invoices)
   const dueTotal = useMemo(() => {
     const fromUnpaid  = unpaidSales.reduce((a, s) => a + Number(s.total || 0), 0);
     const fromPartial = partialSales.reduce((a, s) => a + Number(s.inv_remaining || 0), 0);
     return fromUnpaid + fromPartial;
   }, [unpaidSales, partialSales]);
 
-  const handleRefund = async (saleId, reason) => {
-    const res = await window.api.posRefundSale({ sale_id: saleId, reason, actor: "admin" });
+  // Build adapted object for RefundDialog from a sale row
+  const buildRefundObj = (s) => ({
+    id:             s.id,
+    paid_sum:       s.total,
+    paid_usd:       s.total,
+    paid_lbp:       0,
+    invoice_number: s.sale_number,
+    user_name:      s.customer_name || s.customer || "Walk-in",
+    month:          s.created_at?.slice(0, 7) || "",
+  });
+
+  // Called by RefundDialog onConfirm — receives { refund_usd, refund_lbp, lbp_rate }
+  const handleRefund = async ({ refund_usd, refund_lbp, lbp_rate }) => {
+    const res = await window.api.posRefundSale({
+      sale_id:    refundSale.id,
+      reason:     "Customer refund",
+      actor:      "admin",
+      refund_usd,
+      refund_lbp,
+    });
+    setRefundSale(null);
+    setSelSaleId(null);
     if (res?.ok) {
       setMsg({ text: "Refund processed.", ok: true });
-      setRefundSale(null); setSelSaleId(null);
       await load();
     } else {
-      setMsg({ text: res?.reason || "Refund failed.", ok: false });
+      setMsg({ text: res?.error || res?.reason || "Refund failed.", ok: false });
     }
   };
 
-  const activeSummary = mode === "day" ? daySummary : monthlySummary;
-  const profitTotal = Number(profitReport?.profit || 0);
-  const subtotalForMargin = Number(profitReport?.revenue || 0);
+  const activeSummary    = mode === "day" ? daySummary : monthlySummary;
+  const profitTotal      = Number(profitReport?.profit || 0);
+  const subtotalForMargin= Number(profitReport?.revenue || 0);
 
   return (
     <Box sx={{ pb: 3 }}>
@@ -354,11 +346,10 @@ export default function PosSalesPage() {
       <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, border: "1px solid", borderColor: "grey.200",
         display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
         <Box>
-          <Typography variant="h5" fontWeight={900}>Sales & Analytics</Typography>
+          <Typography variant="h5" fontWeight={900}>Sales History</Typography>
           <Typography variant="body2" sx={{ opacity: 0.65 }}>Daily sales + monthly performance</Typography>
         </Box>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-          {/* Mode toggle */}
           <Box sx={{ display: "flex", border: "1px solid", borderColor: "grey.300", borderRadius: 2, overflow: "hidden" }}>
             {["day", "month"].map(m => (
               <Button key={m} size="small" onClick={() => setMode(m)}
@@ -382,7 +373,6 @@ export default function PosSalesPage() {
             {loading ? "Loading…" : "Refresh"}
           </Button>
           <Button variant="outlined" startIcon={<PrintIcon />} onClick={() => {
-            const title = mode === "day" ? "Sales Summary — " + dayStr : "Sales Summary — " + monthStr;
             const css = "body{font-family:Arial,sans-serif;font-size:13px;margin:0;padding:20px;}"
               + "h1{font-size:20px;margin:0 0 4px;}h2{font-size:14px;color:#666;margin:0 0 20px;font-weight:normal;}"
               + ".cards{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;}"
@@ -412,7 +402,6 @@ export default function PosSalesPage() {
               + '<div class="card"><div class="card-label">Collected</div><div class="card-value" style="color:#2e7d32">$' + collectedTotal.toFixed(2) + '</div></div>'
               + '<div class="card"><div class="card-label">Due</div><div class="card-value" style="color:#e65100">$' + dueTotal.toFixed(2) + '</div></div>'
               + '<div class="card"><div class="card-label">Est. Profit</div><div class="card-value" style="color:#7b1fa2">$' + profitTotal.toFixed(2) + '</div></div>'
-              + '<div class="card"><div class="card-label">Cash USD</div><div class="card-value" style="color:#6d4c41">$' + Number(drawer.total_in_usd || 0).toFixed(2) + '</div></div>'
               + '</div>'
               + '<table><thead><tr><th>Sale #</th><th>Date / Time</th><th>Customer</th><th>Method</th><th>Status</th><th style="text-align:right">Total</th></tr></thead>'
               + '<tbody>' + rows + '</tbody></table>'
@@ -422,26 +411,30 @@ export default function PosSalesPage() {
               + '<span><b>Refunds:</b> $' + refundsAmt.toFixed(2) + '</span>'
               + '</div>'
               + '</body></html>';
-            window.api.printHtml?.({ html, title });
+            window.api.printHtml?.({ html, title: "Sales Summary" });
           }} sx={{ fontWeight: 700 }}>Print Summary</Button>
         </Box>
       </Paper>
 
-      {/* ── Summary cards — clickable filters ───────────────────────────── */}
+      {/* ── Summary cards ───────────────────────────────────────────────── */}
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 1.5, mb: 2 }}>
         <StatCard label={mode === "day" ? "Today Sales" : "Month Sales"}
           value={activeSummary.sale_count || 0} sub={`Avg $${fmt(activeSummary.avg_sale)}`}
           color="primary" onClick={() => setStatusFilter("ALL")} active={statusFilter === "ALL"} />
         <StatCard label="Total Collected" value={`$${fmt(collectedTotal)}`}
           sub={`${paidSales.length} paid · ${partialSales.length} partial`}
-          color="success" onClick={() => setStatusFilter(statusFilter === "COLLECTED" ? "ALL" : "COLLECTED")} active={statusFilter === "COLLECTED"} />
+          color="success"
+          onClick={() => setStatusFilter(statusFilter === "COLLECTED" ? "ALL" : "COLLECTED")}
+          active={statusFilter === "COLLECTED"} />
         <StatCard label="Total Due" value={`$${fmt(dueTotal)}`}
           sub={`${unpaidSales.length} unpaid · ${partialSales.length} partial`}
-          color="warning" onClick={() => setStatusFilter(statusFilter === "DUE" ? "ALL" : "DUE")} active={statusFilter === "DUE"} />
-        <StatCard label="Cash USD" value={`$${fmt(drawer.total_in_usd)}`} sub={`L.L${ll(drawer.total_in_lbp)}`}
-          color="secondary" />
+          color="warning"
+          onClick={() => setStatusFilter(statusFilter === "DUE" ? "ALL" : "DUE")}
+          active={statusFilter === "DUE"} />
+        <StatCard label="Cash USD" value={`$${fmt(drawer.total_in_usd)}`}
+          sub={`L.L${ll(drawer.total_in_lbp)}`} color="secondary" />
         <StatCard label="Est. Profit" value={`$${fmt(profitTotal)}`}
-          sub={`Margin ${subtotalForMargin > 0 ? ((profitTotal/subtotalForMargin)*100).toFixed(1) : 0}%`}
+          sub={`Margin ${subtotalForMargin > 0 ? ((profitTotal / subtotalForMargin) * 100).toFixed(1) : 0}%`}
           color="info" />
       </Box>
 
@@ -460,8 +453,10 @@ export default function PosSalesPage() {
           </Box>
 
           {msg.text && (
-            <Box sx={{ mb: 1.5, px: 2, py: 0.75, borderRadius: 2, bgcolor: msg.ok ? "success.50" : "error.50" }}>
-              <Typography fontSize={13} fontWeight={600} color={msg.ok ? "success.dark" : "error.dark"}>{msg.text}</Typography>
+            <Box sx={{ mb: 1.5, px: 2, py: 0.75, borderRadius: 2,
+              bgcolor: msg.ok ? "success.50" : "error.50" }}>
+              <Typography fontSize={13} fontWeight={600}
+                color={msg.ok ? "success.dark" : "error.dark"}>{msg.text}</Typography>
             </Box>
           )}
 
@@ -482,13 +477,13 @@ export default function PosSalesPage() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} sx={{ textAlign: "center", py: 5, opacity: 0.4 }}>
-                      {loading ? "Loading…" : `No sales${statusFilter !== "ALL" ? ` with status ${statusFilter}` : ""}`}
+                      {loading ? "Loading…" : `No sales${statusFilter !== "ALL" ? ` · ${statusFilter}` : ""}`}
                     </TableCell>
                   </TableRow>
                 ) : filtered.map(s => {
                   const status = s.status || "PAID";
-                  const rowBg = status === "UNPAID" ? "rgba(237,108,2,0.04)"
-                    : status === "PARTIAL" ? "rgba(21,101,192,0.04)"
+                  const rowBg = status === "UNPAID"   ? "rgba(237,108,2,0.04)"
+                    : status === "PARTIAL"  ? "rgba(21,101,192,0.04)"
                     : status === "REFUNDED" ? "rgba(211,47,47,0.04)" : "inherit";
                   return (
                     <TableRow key={s.id} hover sx={{ bgcolor: rowBg, "&:last-child td": { border: 0 } }}>
@@ -509,7 +504,8 @@ export default function PosSalesPage() {
                             <ReceiptIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                           {status === "PAID" && (
-                            <IconButton size="small" color="error" onClick={() => setRefundSale(s)}>
+                            <IconButton size="small" color="error"
+                              onClick={() => setRefundSale(buildRefundObj(s))}>
                               <UndoIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                           )}
@@ -525,13 +521,19 @@ export default function PosSalesPage() {
               <Box sx={{ px: 2, py: 1, bgcolor: "grey.50", borderTop: "1px solid", borderColor: "grey.200",
                 display: "flex", justifyContent: "flex-end", gap: 3 }}>
                 <Typography fontSize={12} fontWeight={700} color="success.dark">
-                  Collected: ${fmt(filtered.filter(s => s.status === "PAID" || !s.status).reduce((a,s) => a + Number(s.total),0) + filtered.filter(s => s.status === "PARTIAL").reduce((a,s) => a + Number(s.inv_paid||0),0))}
+                  Collected: ${fmt(
+                    filtered.filter(s => s.status === "PAID" || !s.status).reduce((a, s) => a + Number(s.total), 0)
+                    + filtered.filter(s => s.status === "PARTIAL").reduce((a, s) => a + Number(s.inv_paid || 0), 0)
+                  )}
                 </Typography>
                 <Typography fontSize={12} fontWeight={700} color="warning.main">
-                  Due: ${fmt(filtered.filter(s => s.status === "UNPAID").reduce((a,s) => a + Number(s.total),0) + filtered.filter(s => s.status === "PARTIAL").reduce((a,s) => a + Number(s.inv_remaining||0),0))}
+                  Due: ${fmt(
+                    filtered.filter(s => s.status === "UNPAID").reduce((a, s) => a + Number(s.total), 0)
+                    + filtered.filter(s => s.status === "PARTIAL").reduce((a, s) => a + Number(s.inv_remaining || 0), 0)
+                  )}
                 </Typography>
                 <Typography fontSize={12} fontWeight={700} color="error.main">
-                  Refunds: ${fmt(filtered.filter(s => s.status === "REFUNDED").reduce((a,s) => a + Number(s.total),0))}
+                  Refunds: ${fmt(filtered.filter(s => s.status === "REFUNDED").reduce((a, s) => a + Number(s.total), 0))}
                 </Typography>
               </Box>
             )}
@@ -541,7 +543,7 @@ export default function PosSalesPage() {
         {/* ── Top items sidebar ────────────────────────────────────────── */}
         {topItems.length > 0 && (
           <Box sx={{ width: 220, flexShrink: 0 }}>
-            <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "grey.200", p: 2, mb: 2 }}>
+            <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "grey.200", p: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
                 <TrendingUpIcon sx={{ fontSize: 18, color: "primary.main" }} />
                 <Typography fontWeight={900} fontSize={14}>Top Items ({monthStr})</Typography>
@@ -564,14 +566,23 @@ export default function PosSalesPage() {
         )}
       </Box>
 
-      {/* Dialogs */}
+      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
       {selSaleId && (
-        <SaleDetailDialog saleId={selSaleId} onClose={() => setSelSaleId(null)}
-          onRefund={(sale) => { setRefundSale(sale); setSelSaleId(null); }} />
+        <SaleDetailDialog
+          saleId={selSaleId}
+          onClose={() => setSelSaleId(null)}
+          onRefund={(adapted) => { setRefundSale(adapted); setSelSaleId(null); }}
+        />
       )}
-      {refundSale && (
-        <RefundDialog sale={refundSale} onConfirm={handleRefund} onClose={() => setRefundSale(null)} />
-      )}
+
+      {/* Reuse ISP RefundDialog — sale object adapted to match invoice shape */}
+      <RefundDialog
+        open={Boolean(refundSale)}
+        onClose={() => setRefundSale(null)}
+        invoice={refundSale}
+        onConfirm={handleRefund}
+      />
+
     </Box>
   );
 }

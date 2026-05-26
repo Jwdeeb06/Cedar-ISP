@@ -108,9 +108,9 @@ function registerWalletHandlers(ipcMain, db) {
 
       // Auto drawer IN — cash received from subscriber
       db.run(
-        `INSERT INTO drawer_transactions (type, amount, reason, ref_type, ref_id, actor, note, company_id)
-         VALUES ('IN', ?, 'PAYMENT', 'wallet', ?, ?, ?, ?)`,
-        [amount, txId, actor, note || `Balance credit — ${user.name}`, user.company_id || null],
+        `INSERT INTO drawer_transactions (type, amount, amount_usd, amount_lbp, reason, ref_type, ref_id, actor, note, company_id)
+         VALUES ('IN', ?, ?, 0, 'PAYMENT', 'wallet', ?, ?, ?, ?)`,
+        [amount, amount, txId, actor, note || `Balance credit — ${user.name}`, user.company_id || null],
         () => {}
       );
 
@@ -178,9 +178,9 @@ function registerWalletHandlers(ipcMain, db) {
       // Auto drawer OUT only for manual debits (not auto-pay — that has its own drawer flow)
       if (refType === "MANUAL") {
         db.run(
-          `INSERT INTO drawer_transactions (type, amount, reason, ref_type, ref_id, actor, note, company_id)
-           VALUES ('OUT', ?, 'REFUND', 'wallet', ?, ?, ?, ?)`,
-          [amount, txId, actor, note || `Balance debit — ${user.name}`, user.company_id || null],
+          `INSERT INTO drawer_transactions (type, amount, amount_usd, amount_lbp, reason, ref_type, ref_id, actor, note, company_id)
+           VALUES ('OUT', ?, ?, 0, 'REFUND', 'wallet', ?, ?, ?, ?)`,
+          [amount, amount, txId, actor, note || `Balance debit — ${user.name}`, user.company_id || null],
           () => {}
         );
       }
