@@ -1,5 +1,7 @@
 // electron/ipc/license_handlers.js
 const { checkLicense, readCache } = require("../license/licenseClient");
+const { autoCheckLicense } = require("../license/licenseClient");
+
 
 function registerLicenseHandlers(ipcMain, db, app) {
 
@@ -21,6 +23,9 @@ function registerLicenseHandlers(ipcMain, db, app) {
     }
   });
 
+  ipcMain.handle("auto-check-license", async () => {
+  return await autoCheckLicense(app);
+});
 }
 
 module.exports = { registerLicenseHandlers };

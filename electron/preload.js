@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("api", {
   updateEmployee:   (p)  => ipcRenderer.invoke("update-employee",   p),
   changePassword:   (p)  => ipcRenderer.invoke("change-password",   p),
   deleteEmployee:   (id) => ipcRenderer.invoke("delete-employee",   id),
+  autoCheckLicense: () => ipcRenderer.invoke("auto-check-license"),
 
   // ── USERS ─────────────────────────────────────────────────────────────────
   addUser:          (user)    => ipcRenderer.invoke("add-user", { ...user, actor: _actor }),
@@ -189,4 +190,5 @@ contextBridge.exposeInMainWorld("api", {
   // ── POS — REPORTS ─────────────────────────────────────────────────────────
   posSalesSummary: (f) => ipcRenderer.invoke("pos-sales-summary", f),
   posTopItems:     (f) => ipcRenderer.invoke("pos-top-items", f),
+
 });

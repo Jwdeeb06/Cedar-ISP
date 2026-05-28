@@ -5,30 +5,27 @@ const https = require("https");
 const http  = require("http");
 
 const LICENSE_SERVER = process.env.LICENSE_SERVER || "https://isp-license-server.cedar-isp-admin.workers.dev";
-const CACHE_DAYS     = 1; // fallback if offline
 
-function getCacheFile(app) {
-  return path.join(app.getPath("userData"), "license.json");
+function getCredsFile(app) {
+  return path.join(app.getPath("userData"), "license_creds.json");
 }
 
-function saveLicense(app, data) {
-  const cache = {
-    ...data,
-    cached_at:   new Date().toISOString(),
-    cache_until: new Date(Date.now() + CACHE_DAYS * 86400000).toISOString(),
-  };
-  fs.writeFileSync(getCacheFile(app), JSON.stringify(cache, null, 2));
-  return cache;
-}
-
-function readCache(app) {
+function saveCreds(app, username, password) {
   try {
-    const file = getCacheFile(app);
+    fs.writeFileSync(getCredsFile(app), JSON.stringify({ username, password }, null, 2));
+  } catch {}
+}
+
+function loadCreds(app) {
+  try {
+    const file = getCredsFile(app);
     if (!fs.existsSync(file)) return null;
-    const cache = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (new Date(cache.cache_until) < new Date()) return null;
-    return cache;
+    return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch { return null; }
+}
+
+function clearCreds(app) {
+  try { fs.unlinkSync(getCredsFile(app)); } catch {}
 }
 
 function httpPost(url, body) {
@@ -56,45 +53,43 @@ function httpPost(url, body) {
   });
 }
 
-// ALWAYS checks online first — cache only used if no internet
+// Manual license check (from login form)
 async function checkLicense(app, username, password) {
   try {
-    // Always try online first
     const res = await httpPost(`${LICENSE_SERVER}/api/auth`, { username, password });
 
     if (res.ok) {
-      // Save to cache (for offline fallback)
-      const cached = saveLicense(app, res);
+      saveCreds(app, username, password);
       console.log(`[License] ✅ Online check passed — ${res.isp_name}`);
-      return { ...cached, from_cache: false };
+      return { ...res, from_cache: false };
     }
 
-    // Hard failures — invalid creds, disabled, expired
-    if (["INVALID_CREDENTIALS","ACCOUNT_DISABLED","EXPIRED"].includes(res.reason)) {
-      // Clear cache on hard failure so they can't use cached license
-      try { fs.unlinkSync(getCacheFile(app)); } catch {}
+    if (["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "EXPIRED"].includes(res.reason)) {
+      clearCreds(app);
       throw { code: res.reason, message: res.message || res.reason, expires_at: res.expires_at };
     }
 
     throw { code: "UNKNOWN", message: "License check failed" };
 
   } catch (e) {
-    // Re-throw hard failures immediately
-    if (e.code && ["INVALID_CREDENTIALS","ACCOUNT_DISABLED","EXPIRED"].includes(e.code)) throw e;
-
-    // Network error — fall back to cache
-    console.log(`[License] ⚠️ No internet — trying cache (${e.message})`);
-    const cache = readCache(app);
-    if (cache) {
-      console.log(`[License] 📦 Using cached license until ${cache.cache_until}`);
-      return { ...cache, from_cache: true };
-    }
-
+    if (e.code && ["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "EXPIRED"].includes(e.code)) throw e;
     throw {
       code: "NO_CONNECTION",
-      message: "Cannot connect to license server.\nPlease connect to the internet to activate.",
+      message: "Cannot connect to license server. Check your internet connection.",
     };
   }
 }
 
-module.exports = { checkLicense, readCache };
+// Auto-check on startup using saved credentials
+async function autoCheckLicense(app) {
+  const creds = loadCreds(app);
+  if (!creds) return null;
+  try {
+    const res = await checkLicense(app, creds.username, creds.password);
+    return res;
+  } catch {
+    return null; // any failure → show license fields
+  }
+}
+
+module.exports = { checkLicense, autoCheckLicense };

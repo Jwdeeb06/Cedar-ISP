@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useParams, useLocation } from "react-router-dom";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { AuthContext } from "./context/AuthContext";
 import AppLayout from "./layout/AppLayout";
 import LoginPage     from "./pages/LoginPage";
-import LicenseGate   from "./pages/LicenseGate";
 
 import Dashboard          from "./pages/Dashboard";
 import UsersListPage      from "./pages/Users/UsersListPage";
@@ -30,7 +29,6 @@ import EmployeesPage      from "./pages/Employees/EmployeesPage";
 import RequirePermission  from "./components/RequirePermission";
 import { setCurrentEmployee } from "./services/activityApi";
 
-// Find the first page the employee has access to
 function getHomePage(employee) {
   const perms = employee?.permissions || {};
   const isAdmin = perms.all === true || employee?.role === "admin";
@@ -50,52 +48,17 @@ function getHomePage(employee) {
 }
 
 export default function App() {
-  const [license,  setLicense]  = useState(null);  // null=checking
   const [employee, setEmployee] = useState(null);
-  const [checking, setChecking] = useState(true);
 
-  // On startup — check for cached license
-  useEffect(() => {
-    (async () => {
-      try {
-        const cached = await window.api.getCachedLicense?.();
-        if (cached?.ok) {
-          setLicense(cached);
-        } else {
-          setLicense(false);
-        }
-      } catch {
-        setLicense(false);
-      } finally {
-        setChecking(false);
-      }
-    })();
-  }, []);
-
-  // 1. Checking cache — show spinner
-  if (checking) {
-    return (
-      <Box sx={{ width:"100vw", height:"100vh", display:"flex",
-        flexDirection:"column", alignItems:"center", justifyContent:"center",
-        background:"linear-gradient(135deg, #1a237e, #1565c0)", gap:2 }}>
-        <CircularProgress sx={{ color:"white" }} />
-        <Typography color="white" fontWeight={600} sx={{ opacity:0.8 }}>Starting…</Typography>
-      </Box>
-    );
-  }
-
-  // 2. No license — show license gate
-  if (!license) {
-    return <LicenseGate onActivated={(lic) => setLicense(lic)} />;
-  }
-
-  // 3. Licensed but no employee — show login
+  // No employee — show login (which includes license check as step 1)
   if (!employee) {
-    return <LoginPage onLogin={(emp) => {
-      setCurrentEmployee(emp);
-      window.api.setActor?.(emp.username);
-      setEmployee(emp);
-    }} />;
+    return (
+      <LoginPage onLogin={(emp) => {
+        setCurrentEmployee(emp);
+        window.api.setActor?.(emp.username);
+        setEmployee(emp);
+      }} />
+    );
   }
 
   const homePage = getHomePage(employee);
@@ -142,7 +105,7 @@ export default function App() {
             {/* Settings */}
             <Route path="settings/isp"           element={<RequirePermission permission="settings"><IspSettings /></RequirePermission>} />
 
-            {/* Employees management */}
+            {/* Employees */}
             <Route path="employees"              element={<EmployeesPage />} />
 
             {/* WhatsApp */}
@@ -151,7 +114,7 @@ export default function App() {
             {/* Archive */}
             <Route path="archive"                element={<RequirePermission permission="archive"><ArchivePage /></RequirePermission>} />
 
-            {/* No access fallback */}
+            {/* No access */}
             <Route path="no-access" element={
               <Box sx={{ display:"flex", flexDirection:"column", alignItems:"center",
                 justifyContent:"center", height:"60vh", gap:2 }}>
