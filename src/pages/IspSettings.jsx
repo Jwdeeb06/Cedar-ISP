@@ -19,6 +19,10 @@ import WarningAmberIcon     from "@mui/icons-material/WarningAmber";
 import GavelIcon            from "@mui/icons-material/Gavel";
 import PrivacyTipIcon       from "@mui/icons-material/PrivacyTip";
 import OpenInNewIcon        from "@mui/icons-material/OpenInNew";
+import DownloadIcon          from "@mui/icons-material/Download";
+import ComputerIcon          from "@mui/icons-material/Computer";
+import LockResetIcon         from "@mui/icons-material/LockReset";
+import VpnKeyIcon            from "@mui/icons-material/VpnKey";
 import LocationPicker       from "../components/LocationPicker";
 
 function Section({ icon, title, subtitle, children, borderColor }) {
@@ -107,15 +111,19 @@ function AutoBackupStatus({ selectedBackup, setSelectedBackup }) {
 
 // ── Legal Doc Button ──────────────────────────────────────────────────────────
 function LegalDocButton({ icon, title, subtitle, doc }) {
-  const [opening, setOpening] = useState(false);
+  const [opening,   setOpening]   = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const open = async () => {
     setOpening(true);
-    try {
-      await window.api.openLegalDoc?.(doc);
-    } finally {
-      setTimeout(() => setOpening(false), 1000);
-    }
+    try { await window.api.openLegalDoc?.(doc); }
+    finally { setTimeout(() => setOpening(false), 1000); }
+  };
+
+  const download = async () => {
+    setDownloading(true);
+    try { await window.api.downloadLegalDoc?.(doc); }
+    finally { setTimeout(() => setDownloading(false), 1000); }
   };
 
   return (
@@ -138,16 +146,192 @@ function LegalDocButton({ icon, title, subtitle, doc }) {
           <Typography variant="caption" sx={{ opacity: 0.55 }}>{subtitle}</Typography>
         </Box>
       </Box>
-      <Button
-        variant="outlined"
-        size="small"
-        endIcon={<OpenInNewIcon sx={{ fontSize: 15 }} />}
-        onClick={open}
-        disabled={opening}
-        sx={{ fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}
-      >
-        {opening ? "Opening…" : "Open"}
-      </Button>
+      <Box sx={{ display: "flex", gap: 1, flexShrink: 0 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          endIcon={<OpenInNewIcon sx={{ fontSize: 15 }} />}
+          onClick={open}
+          disabled={opening}
+          sx={{ fontWeight: 700 }}
+        >
+          {opening ? "Opening…" : "Open"}
+        </Button>
+        <Button
+          variant="contained"
+          size="small"
+          endIcon={<DownloadIcon sx={{ fontSize: 15 }} />}
+          onClick={download}
+          disabled={downloading}
+          sx={{ fontWeight: 700 }}
+        >
+          {downloading ? "Saving…" : "Download"}
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+
+// ── License Tab ───────────────────────────────────────────────────────────────
+function LicenseTab() {
+  const [licInfo,    setLicInfo]    = useState(null);
+  const [machineId,  setMachineId]  = useState("Loading…");
+  const [releasing,  setReleasing]  = useState(false);
+  const [msg,        setMsg]        = useState({ text: "", ok: true });
+
+  useEffect(() => {
+    // Load cached license info
+    window.api.getCachedLicense?.().then(res => {
+      if (res?.ok) setLicInfo(res);
+    }).catch(() => {});
+
+    // Load machine ID via IPC
+    window.api.getMachineId?.().then(id => {
+      setMachineId(id || "Unable to read");
+    }).catch(() => setMachineId("Unable to read"));
+  }, []);
+
+  const releasePC = async () => {
+    setReleasing(true);
+    try {
+      await window.api.clearCachedLicense?.();
+      setMsg({ text: "This PC has been released. Restart the app to bind a new machine.", ok: true });
+      setLicInfo(null);
+    } catch {
+      setMsg({ text: "Failed to release. Try again.", ok: false });
+    } finally {
+      setReleasing(false);
+      setTimeout(() => setMsg({ text: "", ok: true }), 6000);
+    }
+  };
+
+  return (
+    <Box sx={{ maxWidth: 680, display: "flex", flexDirection: "column", gap: 2.5 }}>
+
+      {msg.text && (
+        <Paper sx={{
+          p: 1.5, borderRadius: 2,
+          bgcolor: msg.ok ? "success.50" : "error.50",
+          border: "1px solid", borderColor: msg.ok ? "success.200" : "error.200",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <Typography variant="body2" fontWeight={600} color={msg.ok ? "success.dark" : "error.dark"}>
+            {msg.text}
+          </Typography>
+          <IconButton size="small" onClick={() => setMsg({ text: "", ok: true })}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Paper>
+      )}
+
+      {/* License Info */}
+      <Paper elevation={0} sx={{ borderRadius: 3, border: "1.5px solid", borderColor: "primary.200", overflow: "hidden" }}>
+        <Box sx={{
+          px: 2.5, py: 2, bgcolor: "primary.50",
+          borderBottom: "1px solid", borderColor: "primary.200",
+          display: "flex", alignItems: "center", gap: 1.5,
+        }}>
+          <Box sx={{
+            width: 34, height: 34, borderRadius: 2, bgcolor: "white",
+            border: "1px solid", borderColor: "primary.300",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "primary.main", flexShrink: 0,
+          }}>
+            <VpnKeyIcon fontSize="small" />
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.2 }}>License Information</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.55 }}>Current active license details</Typography>
+          </Box>
+        </Box>
+        <Box sx={{ px: 2.5, py: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+          {licInfo ? (
+            <>
+              {[
+                ["ISP Name",    licInfo.isp_name   || "—"],
+                ["Username",    licInfo.username   || "—"],
+                ["Plan",        licInfo.plan       || "—"],
+                ["Max Users",   licInfo.max_users  || "—"],
+                ["Expires",     licInfo.expires_at || "—"],
+                ["Days Left",   licInfo.days_left != null ? `${licInfo.days_left} days` : "—"],
+              ].map(([label, value]) => (
+                <Box key={label} sx={{ display: "flex", gap: 1, py: 0.5,
+                  borderBottom: "1px solid", borderColor: "grey.100",
+                  "&:last-child": { borderBottom: "none" } }}>
+                  <Typography variant="body2" sx={{ opacity: 0.5, width: 110, flexShrink: 0 }}>{label}</Typography>
+                  <Typography variant="body2" fontWeight={600}>{value}</Typography>
+                </Box>
+              ))}
+            </>
+          ) : (
+            <Typography variant="body2" sx={{ opacity: 0.5 }}>No license cache found.</Typography>
+          )}
+        </Box>
+      </Paper>
+
+      {/* Machine Binding */}
+      <Paper elevation={0} sx={{ borderRadius: 3, border: "1.5px solid", borderColor: "purple.200",
+        borderColor: "#ce93d8", overflow: "hidden" }}>
+        <Box sx={{
+          px: 2.5, py: 2, bgcolor: "#f3e5f5",
+          borderBottom: "1px solid", borderColor: "#ce93d8",
+          display: "flex", alignItems: "center", gap: 1.5,
+        }}>
+          <Box sx={{
+            width: 34, height: 34, borderRadius: 2, bgcolor: "white",
+            border: "1px solid", borderColor: "#ba68c8",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#6a1b9a", flexShrink: 0,
+          }}>
+            <ComputerIcon fontSize="small" />
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.2 }}>Machine Binding</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.55 }}>This PC's hardware fingerprint bound to your license</Typography>
+          </Box>
+        </Box>
+        <Box sx={{ px: 2.5, py: 2 }}>
+          <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
+            <Typography variant="body2" sx={{ opacity: 0.5, width: 110, flexShrink: 0 }}>Machine ID</Typography>
+            <Typography variant="body2" fontWeight={600} sx={{
+              fontFamily: "monospace", fontSize: 11,
+              wordBreak: "break-all", color: "#4a148c",
+            }}>
+              {machineId}
+            </Typography>
+          </Box>
+          <Typography variant="caption" sx={{ opacity: 0.6, display: "block", mb: 2, lineHeight: 1.6 }}>
+            This ID is derived from your network hardware and is used to lock the license to this PC.
+            If you want to move to a different PC, release this binding first — or ask your provider to reset it remotely.
+          </Typography>
+
+          <Box sx={{
+            p: 1.75, borderRadius: 2, border: "1.5px solid", borderColor: "error.300",
+            bgcolor: "error.50", mb: 0,
+          }}>
+            <Typography variant="body2" fontWeight={800} color="error.dark" sx={{ mb: 0.5 }}>
+              Release This PC
+            </Typography>
+            <Typography variant="caption" sx={{ color: "error.dark", opacity: 0.8, display: "block", mb: 1.5 }}>
+              This clears the saved credentials from this machine. The app will show the license login screen on next startup.
+              The license server will bind to whichever PC logs in next.
+            </Typography>
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<LockResetIcon />}
+              onClick={releasePC}
+              disabled={releasing}
+              sx={{ fontWeight: 700 }}
+            >
+              {releasing ? "Releasing…" : "Release This PC"}
+            </Button>
+          </Box>
+        </Box>
+      </Paper>
+
     </Box>
   );
 }
@@ -278,6 +462,7 @@ export default function IspSettings() {
         <Tab label="Map" />
         <Tab label="Point of Sale" />
         <Tab label="Legal" />
+        <Tab label="License" />
       </Tabs>
 
       {msg.text && (
@@ -561,8 +746,14 @@ export default function IspSettings() {
         </Box>
       )}
 
-      {/* Save button — hidden on Legal tab since nothing to save there */}
-      {activeTab !== 5 && (
+
+      {/* ── LICENSE TAB ── */}
+      {activeTab === 6 && (
+        <LicenseTab />
+      )}
+
+      {/* Save button — hidden on Legal/License tab since nothing to save there */}
+      {activeTab !== 5 && activeTab !== 6 && (
         <>
           <Divider sx={{ mt: 3, mb: 2.5 }} />
           <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2 }}>

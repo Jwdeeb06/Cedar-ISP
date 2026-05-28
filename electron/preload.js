@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("api", {
   getCachedLicense: () => ipcRenderer.invoke("get-cached-license"),
   autoCheckLicense: () => ipcRenderer.invoke("auto-check-license"),
   clearCachedLicense: () => ipcRenderer.invoke("clear-cached-license"),
+  getMachineId:       () => ipcRenderer.invoke("get-machine-id"),
 
   // ── LEGAL DOCS ───────────────────────────────────────────────────────────────
   openLegalDoc:     (doc) => ipcRenderer.invoke("open-legal-doc", doc),

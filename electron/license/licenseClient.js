@@ -3,9 +3,34 @@ const path  = require("path");
 const fs    = require("fs");
 const https = require("https");
 const http  = require("http");
+const os    = require("os");
+const crypto = require("crypto");
 
 const LICENSE_SERVER = process.env.LICENSE_SERVER || "https://isp-license-server.cedar-isp-admin.workers.dev";
 
+// ── Machine ID — hashed MAC address ──────────────────────────────────────────
+function getMachineId() {
+  try {
+    const interfaces = os.networkInterfaces();
+    // Collect all non-internal MAC addresses, sort for stability
+    const macs = [];
+    for (const iface of Object.values(interfaces)) {
+      for (const addr of iface) {
+        if (!addr.internal && addr.mac && addr.mac !== "00:00:00:00:00:00") {
+          macs.push(addr.mac);
+        }
+      }
+    }
+    if (!macs.length) return null;
+    macs.sort();
+    // Hash for privacy — server only stores the hash
+    return crypto.createHash("sha256").update(macs[0]).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+// ── Credentials cache (saves username + password for auto-login) ──────────────
 function getCredsFile(app) {
   return path.join(app.getPath("userData"), "license_creds.json");
 }
@@ -28,6 +53,7 @@ function clearCreds(app) {
   try { fs.unlinkSync(getCredsFile(app)); } catch {}
 }
 
+// ── HTTP helper ───────────────────────────────────────────────────────────────
 function httpPost(url, body) {
   return new Promise((resolve, reject) => {
     const data    = JSON.stringify(body);
@@ -53,34 +79,45 @@ function httpPost(url, body) {
   });
 }
 
-// Manual license check (from login form)
+// ── Manual license check (from login form) ────────────────────────────────────
 async function checkLicense(app, username, password) {
+  const machine_id = getMachineId();
   try {
-    const res = await httpPost(`${LICENSE_SERVER}/api/auth`, { username, password });
+    const res = await httpPost(`${LICENSE_SERVER}/api/auth`, {
+      username,
+      password,
+      machine_id,
+    });
 
     if (res.ok) {
       saveCreds(app, username, password);
-      console.log(`[License] ✅ Online check passed — ${res.isp_name}`);
+      console.log(`[License] ✅ Online check passed — ${res.isp_name} (machine: ${machine_id?.slice(0,8)}…)`);
       return { ...res, from_cache: false };
     }
 
-    if (["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "EXPIRED"].includes(res.reason)) {
+    const fatalCodes = ["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "EXPIRED", "WRONG_MACHINE"];
+    if (fatalCodes.includes(res.reason)) {
       clearCreds(app);
-      throw { code: res.reason, message: res.message || res.reason, expires_at: res.expires_at };
+      throw {
+        code:       res.reason,
+        message:    res.message || res.reason,
+        expires_at: res.expires_at,
+      };
     }
 
     throw { code: "UNKNOWN", message: "License check failed" };
 
   } catch (e) {
-    if (e.code && ["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "EXPIRED"].includes(e.code)) throw e;
+    const fatalCodes = ["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "EXPIRED", "WRONG_MACHINE"];
+    if (e.code && fatalCodes.includes(e.code)) throw e;
     throw {
-      code: "NO_CONNECTION",
+      code:    "NO_CONNECTION",
       message: "Cannot connect to license server. Check your internet connection.",
     };
   }
 }
 
-// Auto-check on startup using saved credentials
+// ── Auto-check on startup using saved credentials ─────────────────────────────
 async function autoCheckLicense(app) {
   const creds = loadCreds(app);
   if (!creds) return null;

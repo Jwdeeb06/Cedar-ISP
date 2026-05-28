@@ -73,9 +73,34 @@ ipcMain.handle("clear-cached-license", async () => {
   try {
     const cacheFile = path.join(app.getPath("userData"), "license.json");
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+    // Also clear credentials so login screen shows
+    const credsFile = path.join(app.getPath("userData"), "license_creds.json");
+    if (fs.existsSync(credsFile)) fs.unlinkSync(credsFile);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };
+  }
+});
+
+// ── Get machine ID (hashed MAC) ───────────────────────────────────────────────
+ipcMain.handle("get-machine-id", () => {
+  try {
+    const os     = require("os");
+    const crypto = require("crypto");
+    const interfaces = os.networkInterfaces();
+    const macs = [];
+    for (const iface of Object.values(interfaces)) {
+      for (const addr of iface) {
+        if (!addr.internal && addr.mac && addr.mac !== "00:00:00:00:00:00") {
+          macs.push(addr.mac);
+        }
+      }
+    }
+    if (!macs.length) return null;
+    macs.sort();
+    return crypto.createHash("sha256").update(macs[0]).digest("hex");
+  } catch {
+    return null;
   }
 });
 

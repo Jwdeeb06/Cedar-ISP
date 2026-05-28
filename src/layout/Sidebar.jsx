@@ -195,7 +195,7 @@ export default function Sidebar({ drawerWidth }) {
     boxShadow:"0 2px 10px rgba(0,0,0,0.3)", WebkitAppRegion:"no-drag",
     cursor:"pointer", transition:"transform 0.15s",
     "&:hover":{ transform:"scale(1.05)" } }}>
-          <img src="/icon_256.png" alt="Cedar ISP"
+          <img src="icon_256.png" alt="Cedar ISP"
             style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
             onError={e => { e.target.style.display="none"; }} />
         </Box>
